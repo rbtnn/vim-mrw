@@ -25,12 +25,17 @@ function! mrw#exec() abort
     elseif empty(xs)
         call popup_notification('no most recently written', s:mrw_defaultopt)
     else
-        " calcate the width of second column
-        let fname_max = 0
+        " calcate the width of first and second column
+        let first_max = 0
+        let second_max = 0
         for x in xs
+            let ftime = strftime('%c', getftime(x))
+            if first_max < strdisplaywidth(ftime)
+                let first_max = strdisplaywidth(ftime)
+            endif
             let fname = fnamemodify(x, ':t')
-            if fname_max < strdisplaywidth(fname)
-                let fname_max = strdisplaywidth(fname)
+            if second_max < strdisplaywidth(fname)
+                let second_max = strdisplaywidth(fname)
             endif
         endfor
 
@@ -40,8 +45,8 @@ function! mrw#exec() abort
             let fname = fnamemodify(x, ':t')
             let dir = fnamemodify(x, ':h')
             let lines += [join([
-                \ strftime('%c', getftime(x)),
-                \ s:padding_right_space(fname, fname_max),
+                \ s:padding_right_space(strftime('%c', getftime(x)), first_max),
+                \ s:padding_right_space(fname, second_max),
                 \ dir,
                 \ ], s:mrw_delimiter)]
         endfor

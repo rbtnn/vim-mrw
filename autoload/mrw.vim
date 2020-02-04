@@ -25,7 +25,7 @@ function! mrw#exec() abort
     elseif empty(xs)
         call popup_notification('no most recently written', s:mrw_defaultopt)
     else
-        " calcate the width of first column
+        " calcate the width of second column
         let fname_max = 0
         for x in xs
             let fname = fnamemodify(x, ':t')

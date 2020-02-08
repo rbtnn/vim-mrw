@@ -4,7 +4,7 @@ function! s:fullpath(path) abort
 endfunction
 
 let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname())
-let s:mrw_limit = 100
+let s:mrw_limit = 300
 let s:mrw_title = 'mrw'
 let s:mrw_delimiter = ' | '
 let s:mrw_defaultopt = {
@@ -71,7 +71,9 @@ endfunction
 function! mrw#read_cachefile(curr_file) abort
     if filereadable(s:mrw_cache_path)
         let path = s:fullpath(a:curr_file)
-        return filter(readfile(s:mrw_cache_path), { i,x -> (x != path) && filereadable(x) })[:(s:mrw_limit)]
+        return filter(readfile(s:mrw_cache_path), { i,x ->
+            \ (x != path) && filereadable(x) && (x != s:mrw_cache_path)
+            \ })[:(s:mrw_limit)]
     else
         return []
     endif

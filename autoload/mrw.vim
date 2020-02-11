@@ -49,9 +49,9 @@ function! mrw#exec(q_args) abort
         let lines = []
         let sorted = []
         if -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
-            let sorted = sort(xs, { i1,i2 -> mrw#strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
+            let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
         elseif -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
-            let sorted = sort(xs, { i1,i2 -> mrw#strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
+            let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
         else
             " It's -sortby=time
             let sorted = sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
@@ -98,25 +98,6 @@ function! mrw#read_cachefile(curr_file) abort
     endif
 endfunction
 
-function! mrw#strcmp(x, y) abort
-    if a:x == a:y
-        return 0
-    endif
-    for i in range(0, min([len(a:x), len(a:y)]) - 1)
-        if char2nr(a:x[i]) < char2nr(a:y[i])
-            return -1
-        endif
-        if char2nr(a:x[i]) > char2nr(a:y[i])
-            return 1
-        endif
-    endfor
-    if len(a:x) < len(a:y)
-        return -1
-    else
-        return 1
-    endif
-endfunction
-
 function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
     let xs = []
     let rev = (-1 != stridx(a:CmdLine, s:REVERSE))
@@ -147,6 +128,10 @@ function! s:mrw_callback(winid, key) abort
             execute printf('%s %s', 'edit', escape(path, ' \'))
         endif
     endif
+endfunction
+
+function! s:strcmp(x, y) abort
+    return (a:x == a:y) ? 0 : ((a:x < a:y) ? -1 : 1)
 endfunction
 
 function! s:padding_right_space(text, width)

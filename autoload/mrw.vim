@@ -13,7 +13,12 @@ let s:mrw_defaultopt = {
     \   'padding' : [1,3,1,3],
     \ }
 
-function! mrw#exec() abort
+let s:SORTBY = '-sortby='
+let s:SORTBY_TIME = s:SORTBY .. 'time'
+let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
+let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
+
+function! mrw#exec(q_args) abort
     let xs = mrw#read_cachefile(expand('%'))
     let tstatus = term_getstatus(bufnr())
     if (tstatus != 'finished') && !empty(tstatus)
@@ -41,7 +46,16 @@ function! mrw#exec() abort
 
         " make lines
         let lines = []
-        for x in sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
+        let sorted = []
+        if s:SORTBY_FILENAME == trim(a:q_args)
+            let sorted = sort(xs, { i1,i2 -> mrw#strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
+        elseif s:SORTBY_DIRECTORY == trim(a:q_args)
+            let sorted = sort(xs, { i1,i2 -> mrw#strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
+        else
+            " It's -sortby=time
+            let sorted = sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
+        endif
+        for x in sorted
             let fname = fnamemodify(x, ':t')
             let dir = fnamemodify(x, ':h')
             let lines += [join([
@@ -74,6 +88,34 @@ function! mrw#read_cachefile(curr_file) abort
         return filter(readfile(s:mrw_cache_path), { i,x ->
             \ (x != path) && filereadable(x) && (x != s:mrw_cache_path)
             \ })[:(s:mrw_limit)]
+    else
+        return []
+    endif
+endfunction
+
+function! mrw#strcmp(x, y) abort
+    if a:x == a:y
+        return 0
+    endif
+    for i in range(0, min([len(a:x), len(a:y)]) - 1)
+        if char2nr(a:x[i]) < char2nr(a:y[i])
+            return -1
+        endif
+        if char2nr(a:x[i]) > char2nr(a:y[i])
+            return 1
+        endif
+    endfor
+    if len(a:x) < len(a:y)
+        return -1
+    else
+        return 1
+    endif
+endfunction
+
+function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
+    let xs = [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)]
+    if -1 == match(a:CmdLine, s:SORTBY .. '\S\+')
+        return filter(xs, { i,x -> -1 != match(x, a:ArgLead) })
     else
         return []
     endif

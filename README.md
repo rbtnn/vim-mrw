@@ -4,7 +4,7 @@ This plugin provides to switch a file for editing **M**ost **R**ecently **W**rit
 
 ## Usage
 
-### :MRW [-sortby={sortby-value}]
+### :MRW [-sortby={sortby-value}] [-reverse]
 Show most recently written files by popup window. Then you can edit a selected file.   
 {sortby-value} is a value of following:  
 

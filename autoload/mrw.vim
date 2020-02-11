@@ -13,6 +13,7 @@ let s:mrw_defaultopt = {
     \   'padding' : [1,3,1,3],
     \ }
 
+let s:REVERSE = '-reverse'
 let s:SORTBY = '-sortby='
 let s:SORTBY_TIME = s:SORTBY .. 'time'
 let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
@@ -47,14 +48,18 @@ function! mrw#exec(q_args) abort
         " make lines
         let lines = []
         let sorted = []
-        if s:SORTBY_FILENAME == trim(a:q_args)
+        if -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
             let sorted = sort(xs, { i1,i2 -> mrw#strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
-        elseif s:SORTBY_DIRECTORY == trim(a:q_args)
+        elseif -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
             let sorted = sort(xs, { i1,i2 -> mrw#strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
         else
             " It's -sortby=time
             let sorted = sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
         endif
+        if -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
+            let sorted = reverse(sorted)
+        endif
+
         for x in sorted
             let fname = fnamemodify(x, ':t')
             let dir = fnamemodify(x, ':h')
@@ -113,12 +118,21 @@ function! mrw#strcmp(x, y) abort
 endfunction
 
 function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
-    let xs = [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)]
-    if -1 == match(a:CmdLine, s:SORTBY .. '\S\+')
-        return filter(xs, { i,x -> -1 != match(x, a:ArgLead) })
-    else
-        return []
-    endif
+    let xs = []
+    let rev = (-1 != stridx(a:CmdLine, s:REVERSE))
+    let sortby = v:false
+    for x in [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)]
+        if -1 != stridx(a:CmdLine, x)
+            let sortby = v:true
+            break
+        endif
+    endfor
+    for x in (sortby ? [] : [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)]) + (rev ? [] : [(s:REVERSE)])
+        if -1 == match(a:CmdLine, x)
+            let xs += [x]
+        endif
+    endfor
+    return filter(xs, { i,x -> -1 != match(x, a:ArgLead) })
 endfunction
 
 function! s:mrw_callback(winid, key) abort

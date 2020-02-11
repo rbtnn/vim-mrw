@@ -1,6 +1,6 @@
 # vim-mrw
 
-This plugin provides to switch a file for editing **M**ost **R**ecently **W**ritten files by popup window.  
+This plugin provides to switch a file to edit **M**ost **R**ecently **W**ritten files by popup window.  
 
 ## Usage
 

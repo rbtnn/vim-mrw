@@ -7,10 +7,19 @@ let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname(
 let s:mrw_limit = 300
 let s:mrw_title = 'mrw'
 let s:mrw_delimiter = ' | '
-let s:mrw_defaultopt = {
+let s:mrw_notification_opt = {
     \   'title' : s:mrw_title,
     \   'pos' : 'center',
     \   'padding' : [1,3,1,3],
+    \ }
+let s:mrw_menu_opt = {
+    \   'close' : 'button',
+    \   'maxheight' : &lines * 2 / 3,
+    \   'maxwidth' : &columns * 2 / 3,
+    \   'padding' : [1,3,1,3],
+    \   'pos' : 'center',
+    \   'filter' : function('s:mrw_filter'),
+    \   'callback' : function('s:mrw_callback'),
     \ }
 
 let s:REVERSE = '-reverse'
@@ -23,13 +32,13 @@ function! mrw#exec(q_args) abort
     let xs = mrw#read_cachefile(expand('%'))
     let tstatus = term_getstatus(bufnr())
     if (tstatus != 'finished') && !empty(tstatus)
-        call popup_notification('could not open on running terminal buffer', s:mrw_defaultopt)
+        call popup_notification('could not open on running terminal buffer', s:mrw_notification_opt)
     elseif !empty(getcmdwintype())
-        call popup_notification('could not open on command-line window', s:mrw_defaultopt)
+        call popup_notification('could not open on command-line window', s:mrw_notification_opt)
     elseif &modified
-        call popup_notification('could not open on modified buffer', s:mrw_defaultopt)
+        call popup_notification('could not open on modified buffer', s:mrw_notification_opt)
     elseif empty(xs)
-        call popup_notification('no most recently written', s:mrw_defaultopt)
+        call popup_notification('no most recently written', s:mrw_notification_opt)
     else
         " calcate the width of first and second column
         let first_max = 0
@@ -70,13 +79,11 @@ function! mrw#exec(q_args) abort
                 \ ], s:mrw_delimiter)]
         endfor
 
-        call popup_menu(lines, extend(deepcopy(s:mrw_defaultopt), {
+        let winid = popup_menu(lines, extend(deepcopy(s:mrw_menu_opt), {
             \   'title' : s:mrw_title,
-            \   'close' : 'button',
-            \   'maxwidth' : &columns * 2 / 3,
-            \   'maxheight' : &lines * 2 / 3,
-            \   'callback' : function('s:mrw_callback'),
             \ }))
+        call setwinvar(winid, 'orig_lines', lines)
+        call setwinvar(winid, 'filter_text', '')
     endif
 endfunction
 
@@ -114,6 +121,25 @@ function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
         endif
     endfor
     return filter(xs, { i,x -> -1 != match(x, a:ArgLead) })
+endfunction
+
+function! s:mrw_filter(winid, key) abort
+    if '/' == a:key
+        let filter_text = input('/', getwinvar(a:winid, 'filter_text'))
+        let lines = deepcopy(getwinvar(a:winid, 'orig_lines'))
+        call filter(lines, { i,x -> -1 != match(x, filter_text) })
+        if !empty(lines)
+            call popup_settext(a:winid, lines)
+            call setwinvar(a:winid, 'filter_text', trim(filter_text))
+            call win_execute(a:winid, 'call clearmatches()')
+            call win_execute(a:winid, 'call matchadd("Search", getwinvar(winnr(), "filter_text"))')
+            call popup_setoptions(a:winid, extend(deepcopy(s:mrw_menu_opt), {
+            \   'title' : printf('%s %s%s', s:mrw_title, (empty(filter_text) ? '' : '/'), filter_text),
+            \ }))
+        endif
+        return 1
+    endif
+    return popup_filter_menu(a:winid, a:key)
 endfunction
 
 function! s:mrw_callback(winid, key) abort

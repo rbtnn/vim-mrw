@@ -1,12 +1,12 @@
 # vim-mrw
 
-This plugin provides to select a file for editing **M**ost **R**ecently **W**ritten files by popup window.
-
 ## Usage
 
 ### :MRW [-sortby={sortby-value}]
 
-{sortby-value} is a value of following:
+This plugin provides to select a file for editing **M**ost **R**ecently **W**ritten files by popup window.  
+
+{sortby-value} is a value of following:  
 
 #### 'time' (default)
 Sort by last modification time of the file.

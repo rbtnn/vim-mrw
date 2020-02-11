@@ -8,13 +8,13 @@ This plugin provides to select a file for editing **M**ost **R**ecently **W**rit
 
 {sortby-value} is a value of following:
 
-* 'time' (default)
+#### 'time' (default)
 Sort by last modification time of the file.
 
-* 'filename'
+#### 'filename'
 Sort by file name of the path.
 
-* 'directory'
+#### 'directory'
 Sort by directory of the path.
 
 ![](https://raw.githubusercontent.com/rbtnn/vim-mrw/master/mrw.gif)

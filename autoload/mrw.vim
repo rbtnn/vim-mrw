@@ -1,33 +1,4 @@
 
-function! s:fullpath(path) abort
-    return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
-endfunction
-
-let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname())
-let s:mrw_limit = 300
-let s:mrw_title = 'mrw'
-let s:mrw_delimiter = ' | '
-let s:mrw_notification_opt = {
-    \   'title' : s:mrw_title,
-    \   'pos' : 'center',
-    \   'padding' : [1,3,1,3],
-    \ }
-let s:mrw_menu_opt = {
-    \   'close' : 'button',
-    \   'maxheight' : &lines * 2 / 3,
-    \   'maxwidth' : &columns * 2 / 3,
-    \   'padding' : [1,3,1,3],
-    \   'pos' : 'center',
-    \   'filter' : function('s:mrw_filter'),
-    \   'callback' : function('s:mrw_callback'),
-    \ }
-
-let s:REVERSE = '-reverse'
-let s:SORTBY = '-sortby='
-let s:SORTBY_TIME = s:SORTBY .. 'time'
-let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
-let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
-
 function! mrw#exec(q_args) abort
     let xs = mrw#read_cachefile(expand('%'))
     let tstatus = term_getstatus(bufnr())
@@ -164,3 +135,31 @@ function! s:padding_right_space(text, width)
     return a:text .. repeat(' ', a:width - strdisplaywidth(a:text))
 endfunction
 
+function! s:fullpath(path) abort
+    return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
+endfunction
+
+let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname())
+let s:mrw_limit = 300
+let s:mrw_title = 'mrw'
+let s:mrw_delimiter = ' | '
+let s:mrw_notification_opt = {
+    \   'title' : s:mrw_title,
+    \   'pos' : 'center',
+    \   'padding' : [1,3,1,3],
+    \ }
+let s:mrw_menu_opt = {
+    \   'close' : 'button',
+    \   'maxheight' : &lines * 2 / 3,
+    \   'maxwidth' : &columns * 2 / 3,
+    \   'padding' : [1,3,1,3],
+    \   'pos' : 'center',
+    \   'filter' : function('s:mrw_filter'),
+    \   'callback' : function('s:mrw_callback'),
+    \ }
+
+let s:REVERSE = '-reverse'
+let s:SORTBY = '-sortby='
+let s:SORTBY_TIME = s:SORTBY .. 'time'
+let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
+let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'

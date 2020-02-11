@@ -50,9 +50,7 @@ function! mrw#exec(q_args) abort
                 \ ], s:mrw_delimiter)]
         endfor
 
-        let winid = popup_menu(lines, extend(deepcopy(s:mrw_menu_opt), {
-            \   'title' : s:mrw_title,
-            \ }))
+        let winid = popup_menu(lines, s:mrw_menu_opt(s:mrw_title))
         call setwinvar(winid, 'orig_lines', lines)
         call setwinvar(winid, 'filter_text', '')
     endif
@@ -104,9 +102,7 @@ function! s:mrw_filter(winid, key) abort
             call setwinvar(a:winid, 'filter_text', trim(filter_text))
             call win_execute(a:winid, 'call clearmatches()')
             call win_execute(a:winid, 'call matchadd("Search", getwinvar(winnr(), "filter_text"))')
-            call popup_setoptions(a:winid, extend(deepcopy(s:mrw_menu_opt), {
-            \   'title' : printf('%s %s%s', s:mrw_title, (empty(filter_text) ? '' : '/'), filter_text),
-            \ }))
+            call popup_setoptions(a:winid, s:mrw_menu_opt(printf('%s %s%s', s:mrw_title, (empty(filter_text) ? '' : '/'), filter_text)))
         endif
         return 1
     endif
@@ -139,6 +135,19 @@ function! s:fullpath(path) abort
     return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
 endfunction
 
+function! s:mrw_menu_opt(title) abort
+    return {
+        \   'close' : 'button',
+        \   'maxheight' : &lines * 2 / 3,
+        \   'maxwidth' : &columns * 2 / 3,
+        \   'padding' : [1,3,1,3],
+        \   'pos' : 'center',
+        \   'title' : a:title,
+        \   'filter' : function('s:mrw_filter'),
+        \   'callback' : function('s:mrw_callback'),
+        \ }
+endfunction
+
 let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname())
 let s:mrw_limit = 300
 let s:mrw_title = 'mrw'
@@ -148,18 +157,10 @@ let s:mrw_notification_opt = {
     \   'pos' : 'center',
     \   'padding' : [1,3,1,3],
     \ }
-let s:mrw_menu_opt = {
-    \   'close' : 'button',
-    \   'maxheight' : &lines * 2 / 3,
-    \   'maxwidth' : &columns * 2 / 3,
-    \   'padding' : [1,3,1,3],
-    \   'pos' : 'center',
-    \   'filter' : function('s:mrw_filter'),
-    \   'callback' : function('s:mrw_callback'),
-    \ }
 
 let s:REVERSE = '-reverse'
 let s:SORTBY = '-sortby='
 let s:SORTBY_TIME = s:SORTBY .. 'time'
 let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
 let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
+

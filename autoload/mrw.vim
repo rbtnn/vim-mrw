@@ -92,18 +92,31 @@ function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
     return filter(xs, { i,x -> -1 != match(x, a:ArgLead) })
 endfunction
 
-function! s:mrw_filter(winid, key) abort
-    if '/' == a:key
-        let filter_text = input('/', getwinvar(a:winid, 'filter_text'))
+function! s:update_lines(winid, F, timer) abort
+    let filter_text = a:F()
+    if getwinvar(a:winid, 'prev_filter_text') != filter_text
+        call setwinvar(a:winid, 'prev_filter_text', filter_text)
         let lines = deepcopy(getwinvar(a:winid, 'orig_lines'))
         call filter(lines, { i,x -> -1 != match(x, filter_text) })
+        call setwinvar(a:winid, 'filter_text', trim(filter_text))
+        call win_execute(a:winid, 'call clearmatches()')
         if !empty(lines)
             call popup_settext(a:winid, lines)
-            call setwinvar(a:winid, 'filter_text', trim(filter_text))
-            call win_execute(a:winid, 'call clearmatches()')
             call win_execute(a:winid, 'call matchadd("Search", getwinvar(winnr(), "filter_text"))')
-            call popup_setoptions(a:winid, s:mrw_menu_opt(printf('%s %s%s', s:mrw_title, (empty(filter_text) ? '' : '/'), filter_text)))
+        else
+            call popup_settext(a:winid, s:NO_MATCHES)
         endif
+        call popup_setoptions(a:winid, s:mrw_menu_opt(printf('%s %s%s', s:mrw_title, (empty(filter_text) ? '' : '/'), filter_text)))
+        redraw
+    endif
+endfunction
+
+function! s:mrw_filter(winid, key) abort
+    if '/' == a:key
+        let timer = timer_start(100, function('s:update_lines', [(a:winid), function('getcmdline')]), #{ repeat: -1, })
+        let filter_text = input('/', getwinvar(a:winid, 'filter_text'))
+        call timer_stop(timer)
+        call s:update_lines(a:winid, {-> filter_text }, timer)
         return 1
     endif
     return popup_filter_menu(a:winid, a:key)
@@ -112,13 +125,16 @@ endfunction
 function! s:mrw_callback(winid, key) abort
     if 0 < a:key
         let lnum = a:key
-        let xs = split(getbufline(winbufnr(a:winid), lnum, lnum)[0], s:mrw_delimiter)
-        let path = s:fullpath(trim(xs[2]) .. '/' .. trim(xs[1]))
-        let matches = filter(getbufinfo(), {i,x -> s:fullpath(x.name) == path })
-        if !empty(matches)
-            execute printf('%s %d', 'buffer', matches[0]['bufnr'])
-        else
-            execute printf('%s %s', 'edit', escape(path, ' \'))
+        let text = getbufline(winbufnr(a:winid), lnum, lnum)[0]
+        if s:NO_MATCHES != text
+            let xs = split(text, s:mrw_delimiter)
+            let path = s:fullpath(trim(xs[2]) .. '/' .. trim(xs[1]))
+            let matches = filter(getbufinfo(), {i,x -> s:fullpath(x.name) == path })
+            if !empty(matches)
+                execute printf('%s %d', 'buffer', matches[0]['bufnr'])
+            else
+                execute printf('%s %s', 'edit', escape(path, ' \'))
+            endif
         endif
     endif
 endfunction
@@ -158,6 +174,7 @@ let s:mrw_notification_opt = {
     \   'padding' : [1,3,1,3],
     \ }
 
+let s:NO_MATCHES = 'no matches'
 let s:REVERSE = '-reverse'
 let s:SORTBY = '-sortby='
 let s:SORTBY_TIME = s:SORTBY .. 'time'

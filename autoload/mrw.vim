@@ -50,7 +50,7 @@ function! mrw#exec(q_args) abort
                 \ ], s:mrw_delimiter)]
         endfor
 
-        let winid = popup_menu(lines, s:mrw_menu_opt)
+        let winid = popup_menu(lines, s:mrw_menu_opt())
         call setwinvar(winid, 'orig_lines', lines)
         call setwinvar(winid, 'filter_text', '')
     endif
@@ -106,7 +106,7 @@ function! s:update_lines(winid, F, timer) abort
         else
             call popup_settext(a:winid, s:NO_MATCHES)
         endif
-        call popup_setoptions(a:winid, s:mrw_menu_opt)
+        call popup_setoptions(a:winid, s:mrw_menu_opt())
         redraw
     endif
 endfunction
@@ -151,7 +151,9 @@ function! s:fullpath(path) abort
     return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
 endfunction
 
-let s:mrw_menu_opt = {
+" This is a function but a script's variable, due to must re-evaluate &columns and &lines.
+function! s:mrw_menu_opt() abort
+    return {
         \   'filter' : function('s:mrw_filter'),
         \   'callback' : function('s:mrw_callback'),
         \   'maxwidth' : &columns - 2,
@@ -161,6 +163,8 @@ let s:mrw_menu_opt = {
         \   'col' : 1,
         \   'border' : [0,0,0,0],
         \ }
+endfunction
+
 let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname())
 let s:mrw_limit = 300
 let s:mrw_title = 'mrw'

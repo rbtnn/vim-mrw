@@ -50,7 +50,7 @@ function! mrw#exec(q_args) abort
                 \ ], s:mrw_delimiter)]
         endfor
 
-        let winid = popup_menu(lines, s:mrw_menu_opt(s:mrw_title))
+        let winid = popup_menu(lines, s:mrw_menu_opt)
         call setwinvar(winid, 'orig_lines', lines)
         call setwinvar(winid, 'filter_text', '')
     endif
@@ -106,7 +106,7 @@ function! s:update_lines(winid, F, timer) abort
         else
             call popup_settext(a:winid, s:NO_MATCHES)
         endif
-        call popup_setoptions(a:winid, s:mrw_menu_opt(printf('%s %s%s', s:mrw_title, (empty(filter_text) ? '' : '/'), filter_text)))
+        call popup_setoptions(a:winid, s:mrw_menu_opt)
         redraw
     endif
 endfunction
@@ -151,19 +151,16 @@ function! s:fullpath(path) abort
     return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
 endfunction
 
-function! s:mrw_menu_opt(title) abort
-    return {
-        \   'close' : 'button',
-        \   'maxheight' : &lines * 2 / 3,
-        \   'maxwidth' : &columns * 2 / 3,
-        \   'padding' : [1,3,1,3],
-        \   'pos' : 'center',
-        \   'title' : a:title,
+let s:mrw_menu_opt = {
         \   'filter' : function('s:mrw_filter'),
         \   'callback' : function('s:mrw_callback'),
+        \   'maxwidth' : &columns - 2,
+        \   'minwidth' : &columns - 2,
+        \   'pos' : 'topleft',
+        \   'line' : &lines + 1,
+        \   'col' : 1,
+        \   'border' : [0,0,0,0],
         \ }
-endfunction
-
 let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname())
 let s:mrw_limit = 300
 let s:mrw_title = 'mrw'

@@ -156,8 +156,9 @@ function! s:mrw_menu_opt() abort
     return {
         \   'filter' : function('s:mrw_filter'),
         \   'callback' : function('s:mrw_callback'),
-        \   'maxwidth' : &columns - 2,
-        \   'minwidth' : &columns - 2,
+        \   'maxheight' : &lines / 3,
+        \   'maxwidth' : &columns - 4,
+        \   'minwidth' : &columns - 4,
         \   'pos' : 'topleft',
         \   'line' : &lines + 1,
         \   'col' : 1,

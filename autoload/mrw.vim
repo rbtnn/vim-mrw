@@ -133,7 +133,7 @@ function! s:mrw_callback(winid, key) abort
             if !empty(matches)
                 execute printf('%s %d', 'buffer', matches[0]['bufnr'])
             else
-                execute printf('%s %s', 'edit', escape(path, ' \'))
+                execute printf('%s %s', 'edit', fnameescape(path))
             endif
         endif
     endif

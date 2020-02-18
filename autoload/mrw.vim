@@ -8,7 +8,7 @@ function! mrw#exec(q_args) abort
     elseif &modified
         call popup_notification('could not open on modified buffer', s:mrw_notification_opt)
     else
-        let xs = mrw#read_cachefile(expand('%'))
+        let xs = mrw#read_cachefile(s:fullpath(expand('%')))
         if empty(xs)
             call popup_notification('no most recently written', s:mrw_notification_opt)
         else
@@ -61,18 +61,20 @@ endfunction
 function! mrw#bufwritepost() abort
     let path = expand('<afile>')
     if filereadable(path)
-        let xs = [(s:fullpath(path))] + mrw#read_cachefile(path)
-        call writefile(xs[:(s:mrw_limit)], s:mrw_cache_path)
+        let fullpath = s:fullpath(path)
+        let head = readfile(s:mrw_cache_path, '', 1)
+        if empty(head) || (fullpath != s:fullpath(get(head, 0, '')))
+            let xs = [fullpath] + mrw#read_cachefile(fullpath)
+            call writefile(xs, s:mrw_cache_path)
+        endif
     endif
 endfunction
 
-function! mrw#read_cachefile(curr_file) abort
+function! mrw#read_cachefile(fullpath) abort
     if filereadable(s:mrw_cache_path)
-        let path = s:fullpath(a:curr_file)
-        let xs = filter(readfile(s:mrw_cache_path), { i,x ->
-            \ (x != path) && filereadable(x) && (x != s:mrw_cache_path)
+        return filter(readfile(s:mrw_cache_path, '', s:mrw_limit), { i,x ->
+            \ (-1 == index([(a:fullpath), (s:mrw_cache_path)], x)) && filereadable(x)
             \ })
-        return xs[:(s:mrw_limit)]
     else
         return []
     endif

@@ -12,7 +12,7 @@ function! mrw#exec(q_args) abort
         if empty(xs)
             call popup_notification('no most recently written', s:mrw_notification_opt)
         else
-            " calcate the width of first and second column
+            " calculate the width of first and second column
             let first_max = 0
             let second_max = 0
             for x in xs

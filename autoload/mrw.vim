@@ -62,10 +62,12 @@ function! mrw#bufwritepost() abort
     let path = expand('<afile>')
     if filereadable(path)
         let fullpath = s:fullpath(path)
-        let head = readfile(s:mrw_cache_path, '', 1)
-        if empty(head) || (fullpath != s:fullpath(get(head, 0, '')))
-            let xs = [fullpath] + mrw#read_cachefile(fullpath)
-            call writefile(xs, s:mrw_cache_path)
+        if fullpath != s:mrw_cache_path
+            let head = readfile(s:mrw_cache_path, '', 1)
+            if empty(head) || (fullpath != s:fullpath(get(head, 0, '')))
+                let xs = [fullpath] + mrw#read_cachefile(fullpath)
+                call writefile(xs, s:mrw_cache_path)
+            endif
         endif
     endif
 endfunction
@@ -73,7 +75,7 @@ endfunction
 function! mrw#read_cachefile(fullpath) abort
     if filereadable(s:mrw_cache_path)
         return filter(readfile(s:mrw_cache_path, '', s:mrw_limit), { i,x ->
-            \ (-1 == index([(a:fullpath), (s:mrw_cache_path)], x)) && filereadable(x)
+            \ (a:fullpath != x) && filereadable(x)
             \ })
     else
         return []

@@ -1,6 +1,5 @@
 
 function! mrw#exec(q_args) abort
-    let xs = mrw#read_cachefile(expand('%'))
     let tstatus = term_getstatus(bufnr())
     if (tstatus != 'finished') && !empty(tstatus)
         call popup_notification('could not open on running terminal buffer', s:mrw_notification_opt)
@@ -8,67 +7,72 @@ function! mrw#exec(q_args) abort
         call popup_notification('could not open on command-line window', s:mrw_notification_opt)
     elseif &modified
         call popup_notification('could not open on modified buffer', s:mrw_notification_opt)
-    elseif empty(xs)
-        call popup_notification('no most recently written', s:mrw_notification_opt)
     else
-        " calcate the width of first and second column
-        let first_max = 0
-        let second_max = 0
-        for x in xs
-            let ftime = strftime('%c', getftime(x))
-            if first_max < strdisplaywidth(ftime)
-                let first_max = strdisplaywidth(ftime)
-            endif
-            let fname = fnamemodify(x, ':t')
-            if second_max < strdisplaywidth(fname)
-                let second_max = strdisplaywidth(fname)
-            endif
-        endfor
-
-        " make lines
-        let lines = []
-        let sorted = []
-        if -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
-            let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
-        elseif -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
-            let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
+        let xs = mrw#read_cachefile(expand('%'))
+        if empty(xs)
+            call popup_notification('no most recently written', s:mrw_notification_opt)
         else
-            " It's -sortby=time
-            let sorted = sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
-        endif
-        if -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
-            let sorted = reverse(sorted)
-        endif
+            " calcate the width of first and second column
+            let first_max = 0
+            let second_max = 0
+            for x in xs
+                let ftime = strftime('%c', getftime(x))
+                if first_max < strdisplaywidth(ftime)
+                    let first_max = strdisplaywidth(ftime)
+                endif
+                let fname = fnamemodify(x, ':t')
+                if second_max < strdisplaywidth(fname)
+                    let second_max = strdisplaywidth(fname)
+                endif
+            endfor
 
-        for x in sorted
-            let fname = fnamemodify(x, ':t')
-            let dir = fnamemodify(x, ':h')
-            let lines += [join([
-                \ s:padding_right_space(strftime('%c', getftime(x)), first_max),
-                \ s:padding_right_space(fname, second_max),
-                \ dir,
-                \ ], s:mrw_delimiter)]
-        endfor
+            " make lines
+            let lines = []
+            let sorted = []
+            if -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
+                let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
+            elseif -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
+                let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
+            else
+                " It's -sortby=time
+                let sorted = sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
+            endif
+            if -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
+                let sorted = reverse(sorted)
+            endif
 
-        let winid = popup_menu(lines, s:mrw_menu_opt())
-        call setwinvar(winid, 'orig_lines', lines)
-        call setwinvar(winid, 'filter_text', '')
+            for x in sorted
+                let fname = fnamemodify(x, ':t')
+                let dir = fnamemodify(x, ':h')
+                let lines += [join([
+                    \ s:padding_right_space(strftime('%c', getftime(x)), first_max),
+                    \ s:padding_right_space(fname, second_max),
+                    \ dir,
+                    \ ], s:mrw_delimiter)]
+            endfor
+
+            let winid = popup_menu(lines, s:mrw_menu_opt(len(lines), len(lines)))
+            call setwinvar(winid, 'orig_lines', lines)
+            call setwinvar(winid, 'filter_text', '')
+        endif
     endif
 endfunction
 
 function! mrw#bufwritepost() abort
     let path = expand('<afile>')
     if filereadable(path)
-        call writefile([(s:fullpath(path))] + mrw#read_cachefile(path), s:mrw_cache_path)
+        let xs = [(s:fullpath(path))] + mrw#read_cachefile(path)
+        call writefile(xs[:(s:mrw_limit)], s:mrw_cache_path)
     endif
 endfunction
 
 function! mrw#read_cachefile(curr_file) abort
     if filereadable(s:mrw_cache_path)
         let path = s:fullpath(a:curr_file)
-        return filter(readfile(s:mrw_cache_path), { i,x ->
+        let xs = filter(readfile(s:mrw_cache_path), { i,x ->
             \ (x != path) && filereadable(x) && (x != s:mrw_cache_path)
-            \ })[:(s:mrw_limit)]
+            \ })
+        return xs[:(s:mrw_limit)]
     else
         return []
     endif
@@ -97,7 +101,9 @@ function! s:update_lines(winid, F, timer) abort
     if getwinvar(a:winid, 'prev_filter_text') != filter_text
         call setwinvar(a:winid, 'prev_filter_text', filter_text)
         let lines = deepcopy(getwinvar(a:winid, 'orig_lines'))
+        let orig_len = len(lines)
         call filter(lines, { i,x -> -1 != match(x, filter_text) })
+        let filter_len = len(lines)
         call setwinvar(a:winid, 'filter_text', trim(filter_text))
         call win_execute(a:winid, 'call clearmatches()')
         if !empty(lines)
@@ -106,7 +112,7 @@ function! s:update_lines(winid, F, timer) abort
         else
             call popup_settext(a:winid, s:NO_MATCHES)
         endif
-        call popup_setoptions(a:winid, s:mrw_menu_opt())
+        call popup_setoptions(a:winid, s:mrw_menu_opt(filter_len, orig_len))
         redraw
     endif
 endfunction
@@ -152,8 +158,9 @@ function! s:fullpath(path) abort
 endfunction
 
 " This is a function but a script's variable, due to must re-evaluate &columns and &lines.
-function! s:mrw_menu_opt() abort
+function! s:mrw_menu_opt(filter_len, orig_len) abort
     return {
+        \   'title' : printf('%s (%d/%d)', s:mrw_title, a:filter_len, a:orig_len),
         \   'filter' : function('s:mrw_filter'),
         \   'callback' : function('s:mrw_callback'),
         \   'maxheight' : &lines / 3,

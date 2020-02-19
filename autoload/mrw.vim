@@ -63,7 +63,10 @@ function! mrw#bufwritepost() abort
     if filereadable(path)
         let fullpath = s:fullpath(path)
         if fullpath != s:mrw_cache_path
-            let head = readfile(s:mrw_cache_path, '', 1)
+            let head = []
+            if filereadable(s:mrw_cache_path)
+                let head = readfile(s:mrw_cache_path, '', 1)
+            endif
             if empty(head) || (fullpath != s:fullpath(get(head, 0, '')))
                 let xs = [fullpath] + mrw#read_cachefile(fullpath)
                 call writefile(xs, s:mrw_cache_path)

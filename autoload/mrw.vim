@@ -1,4 +1,6 @@
 
+let s:PopupWin = vital#mrw#import('PopupWin')
+
 function! mrw#exec(q_args) abort
     let tstatus = term_getstatus(bufnr())
     if (tstatus != 'finished') && !empty(tstatus)
@@ -51,10 +53,13 @@ function! mrw#exec(q_args) abort
                     \ ], s:mrw_delimiter)]
             endfor
 
-            let winid = popup_menu(lines, s:mrw_menu_opt(len(lines), len(lines)))
+            let winid = popup_menu(lines, {})
             call win_execute(winid, 'setlocal number')
-            call setwinvar(winid, 'orig_lines', lines)
-            call setwinvar(winid, 'filter_text', '')
+            call s:PopupWin.enhance_menufilter(winid, {
+                \   'title' : s:mrw_title,
+                \   'callback' : function('s:mrw_callback'),
+                \   'no_matches' : s:NO_MATCHES,
+                \ })
         endif
     endif
 endfunction
@@ -104,44 +109,6 @@ function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
     return filter(xs, { i,x -> -1 != match(x, a:ArgLead) })
 endfunction
 
-function! s:update_lines(winid, F, timer) abort
-    let filter_text = a:F()
-    if getwinvar(a:winid, 'prev_filter_text') != filter_text
-        call setwinvar(a:winid, 'prev_filter_text', filter_text)
-        let lines = deepcopy(getwinvar(a:winid, 'orig_lines'))
-        let orig_len = len(lines)
-        call filter(lines, { i,x -> -1 != match(x, filter_text) })
-        let filter_len = len(lines)
-        call setwinvar(a:winid, 'filter_text', trim(filter_text))
-        call win_execute(a:winid, 'call clearmatches()')
-        if !empty(lines)
-            call popup_settext(a:winid, lines)
-            call win_execute(a:winid, 'call matchadd("Search", getwinvar(winnr(), "filter_text"))')
-        else
-            call popup_settext(a:winid, s:NO_MATCHES)
-        endif
-        call popup_setoptions(a:winid, s:mrw_menu_opt(filter_len, orig_len))
-        redraw
-    endif
-endfunction
-
-function! s:mrw_filter(winid, key) abort
-    if '/' == a:key
-        let timer = timer_start(100, function('s:update_lines', [(a:winid), function('getcmdline')]), #{ repeat: -1, })
-        let filter_text = input('/', getwinvar(a:winid, 'filter_text'))
-        call timer_stop(timer)
-        call s:update_lines(a:winid, {-> filter_text }, timer)
-        return 1
-    elseif 'g' == a:key
-        call win_execute(a:winid, printf('call setpos(".", [0, %d, 0, 0])', 1))
-        return 1
-    elseif 'G' == a:key
-        call win_execute(a:winid, printf('call setpos(".", [0, %d, 0, 0])', line('$', a:winid)))
-        return 1
-    endif
-    return popup_filter_menu(a:winid, a:key)
-endfunction
-
 function! s:mrw_callback(winid, key) abort
     if 0 < a:key
         let lnum = a:key
@@ -169,23 +136,6 @@ endfunction
 
 function! s:fullpath(path) abort
     return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
-endfunction
-
-" This is a function but a script's variable, due to must re-evaluate &columns and &lines.
-function! s:mrw_menu_opt(filter_len, orig_len) abort
-    return {
-        \   'title' : printf('%s (%d/%d)', s:mrw_title, a:filter_len, a:orig_len),
-        \   'filter' : function('s:mrw_filter'),
-        \   'callback' : function('s:mrw_callback'),
-        \   'maxheight' : &lines / 3,
-        \   'minheight' : &lines / 3,
-        \   'maxwidth' : &columns - 4,
-        \   'minwidth' : &columns - 4,
-        \   'pos' : 'topleft',
-        \   'line' : &lines + 1,
-        \   'col' : 1,
-        \   'border' : [0,0,0,0],
-        \ }
 endfunction
 
 let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname())

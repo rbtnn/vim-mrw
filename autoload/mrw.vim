@@ -52,6 +52,7 @@ function! mrw#exec(q_args) abort
             endfor
 
             let winid = popup_menu(lines, s:mrw_menu_opt(len(lines), len(lines)))
+            call win_execute(winid, 'setlocal number')
             call setwinvar(winid, 'orig_lines', lines)
             call setwinvar(winid, 'filter_text', '')
         endif
@@ -130,6 +131,12 @@ function! s:mrw_filter(winid, key) abort
         let filter_text = input('/', getwinvar(a:winid, 'filter_text'))
         call timer_stop(timer)
         call s:update_lines(a:winid, {-> filter_text }, timer)
+        return 1
+    elseif 'g' == a:key
+        call win_execute(a:winid, printf('call setpos(".", [0, %d, 0, 0])', 1))
+        return 1
+    elseif 'G' == a:key
+        call win_execute(a:winid, printf('call setpos(".", [0, %d, 0, 0])', line('$', a:winid)))
         return 1
     endif
     return popup_filter_menu(a:winid, a:key)

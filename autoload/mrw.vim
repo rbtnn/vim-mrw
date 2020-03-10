@@ -1,6 +1,4 @@
 
-let s:PopupWin = vital#mrw#import('PopupWin')
-
 function! mrw#exec(q_args) abort
     let tstatus = term_getstatus(bufnr())
     if (tstatus != 'finished') && !empty(tstatus)
@@ -55,11 +53,7 @@ function! mrw#exec(q_args) abort
 
             let winid = popup_menu(lines, {})
             call win_execute(winid, 'setlocal number')
-            call s:PopupWin.enhance_menufilter(winid, {
-                \   'title' : s:mrw_title,
-                \   'callback' : function('s:mrw_callback'),
-                \   'no_matches' : s:NO_MATCHES,
-                \ })
+            call s:PopupWin.enhance_menufilter(winid, s:mrw_options)
         endif
     endif
 endfunction
@@ -138,6 +132,17 @@ function! s:fullpath(path) abort
     return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
 endfunction
 
+
+
+let s:PopupWin = vital#mrw#import('PopupWin')
+
+let s:NO_MATCHES = 'no matches'
+let s:REVERSE = '-reverse'
+let s:SORTBY = '-sortby='
+let s:SORTBY_TIME = s:SORTBY .. 'time'
+let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
+let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
+
 let s:mrw_cache_path = s:fullpath(expand('<sfile>:h:h') .. '/.mrw.' .. hostname())
 let s:mrw_limit = 300
 let s:mrw_title = 'mrw'
@@ -147,11 +152,9 @@ let s:mrw_notification_opt = {
     \   'pos' : 'center',
     \   'padding' : [1,3,1,3],
     \ }
-
-let s:NO_MATCHES = 'no matches'
-let s:REVERSE = '-reverse'
-let s:SORTBY = '-sortby='
-let s:SORTBY_TIME = s:SORTBY .. 'time'
-let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
-let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
+let s:mrw_options = {
+    \   'title' : s:mrw_title,
+    \   'callback' : function('s:mrw_callback'),
+    \   'no_matches' : s:NO_MATCHES,
+    \ }
 

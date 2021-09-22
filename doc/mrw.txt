@@ -1,20 +1,12 @@
-*mrw.txt*  switch a file to edit most recently written files by popup window.
+*mrw.txt*  switch a file to edit most recently written files.
 
 Author : rbtnn <naru123456789@gmail.com>
 LICENSE: MIT license (see LICENSE.txt)
 
 CONTENTS                                                          *mrw-contents*
 
-Requirements            |mrw-requirements|
 Concepts                |mrw-concepts|
 Commands                |mrw-commands|
-
-
-
-==============================================================================
-Requirements                                                  *mrw-requirements*
-
-* Vim must be compiled with `+popupwin` feature
 
 
 
@@ -31,9 +23,8 @@ Commands                                                          *mrw-commands*
 
                                                          *:MRW*
 :MRW [-sortby={sortby-value}] [-reverse]
-		Show most recently written files by popup window. Then you
-		can edit a selected file.
-		{sortby-value} is a value of following:
+		Show most recently written files. Then you can edit a selected
+		file.  {sortby-value} is a value of following:
 
 		'time'		(default) Sort by last modification time of
 				the file .

@@ -7,11 +7,12 @@ let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
 
 let s:mrw_limit = 300
 let s:mrw_delimiter = ' | '
+let s:mrw_bufnrs = get(s:, 'mrw_bufnrs', [])
 
 let g:mrw_cache_path = expand(get(g:, 'mrw_cache_path', '~/.mrw'))
 
 function! mrw#exec(q_args) abort
-	let xs = mrw#read_cachefile('')
+	let xs = s:read_cachefile('')
 	if empty(xs)
 		echohl Error
 		echo 'no most recently written'
@@ -62,12 +63,11 @@ function! mrw#exec(q_args) abort
 			setlocal modifiable noreadonly
 			silent! call deletebufline(bufnr(), 1, '$')
 			call setbufline(bufnr(), 1, lines)
-			setlocal buftype=nofile nomodifiable readonly
+			setlocal nobuflisted buftype=nofile nomodifiable readonly
 			setlocal cursorline
-			setfiletype mrw
 
-			nnoremap <buffer><cr>    <Cmd>call mrw#select()<cr>
-			nnoremap <buffer><space> <Cmd>call mrw#select()<cr>
+			setfiletype mrw
+			let s:mrw_bufnrs += [bufnr()]
 		catch
 			echohl Error
 			echo v:exception
@@ -76,30 +76,28 @@ function! mrw#exec(q_args) abort
 	endif
 endfunction
 
+function! mrw#cleanup() abort
+	for bnr in deepcopy(s:mrw_bufnrs)
+		if empty(get(get(getbufinfo(bnr), 0, {}), 'windows', []))
+			call s:bwipeout(bnr)
+		endif
+	endfor
+endfunction
+
 function! mrw#bufwritepost() abort
 	let path = expand('<afile>')
 	if filereadable(path)
-		let fullpath = mrw#fix_path(path)
+		let fullpath = s:fix_path(path)
 		if fullpath != g:mrw_cache_path
 			let head = []
 			if filereadable(g:mrw_cache_path)
 				let head = readfile(g:mrw_cache_path, '', 1)
 			endif
-			if empty(head) || (fullpath != mrw#fix_path(get(head, 0, '')))
-				let xs = [fullpath] + mrw#read_cachefile(fullpath)
+			if empty(head) || (fullpath != s:fix_path(get(head, 0, '')))
+				let xs = [fullpath] + s:read_cachefile(fullpath)
 				call writefile(xs, g:mrw_cache_path)
 			endif
 		endif
-	endif
-endfunction
-
-function! mrw#read_cachefile(fullpath) abort
-	if filereadable(g:mrw_cache_path)
-		return filter(readfile(g:mrw_cache_path, '', s:mrw_limit), { i,x ->
-			\ (a:fullpath != x) && filereadable(x)
-			\ })
-	else
-		return []
 	endif
 endfunction
 
@@ -124,19 +122,37 @@ endfunction
 function! mrw#select() abort
 	let text = getbufline(bufnr(), line('.'), line('.'))[0]
 	let xs = split(text, s:mrw_delimiter)
-	let path = mrw#fix_path(trim(xs[2]) .. '/' .. trim(xs[1]))
+	let path = s:fix_path(trim(xs[2]) .. '/' .. trim(xs[1]))
 	if filereadable(path)
 		let bnr = bufnr()
 		call s:open_file(path)
-		execute printf('%dbwipeout', bnr)
+		call s:bwipeout(bnr)
 	endif
 endfunction
 
-function! mrw#fix_path(path) abort
+
+
+function! s:fix_path(path) abort
 	return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
 endfunction
 
+function! s:bwipeout(bnr) abort
+	execute printf('%dbwipeout', a:bnr)
+	let i = index(s:mrw_bufnrs, a:bnr)
+	if -1 != i
+		call remove(s:mrw_bufnrs, i)
+	endif
+endfunction
 
+function! s:read_cachefile(fullpath) abort
+	if filereadable(g:mrw_cache_path)
+		return filter(readfile(g:mrw_cache_path, '', s:mrw_limit), { i,x ->
+			\ (a:fullpath != x) && filereadable(x)
+			\ })
+	else
+		return []
+	endif
+endfunction
 
 function! s:strict_bufnr(path) abort
 	let bnr = bufnr(a:path)

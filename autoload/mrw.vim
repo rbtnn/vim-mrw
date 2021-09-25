@@ -27,7 +27,7 @@ function! mrw#exec(q_args) abort
 				endif
 			endfor
 			if !exists
-				silent! edit [mrw]
+				silent! edit mrw://output
 				setfiletype mrw
 				setlocal buftype=nofile bufhidden=hide cursorline
 			endif
@@ -159,7 +159,7 @@ function! s:open_file(path) abort
 	if -1 == bnr
 		execute printf('edit %s', fnameescape(a:path))
 	else
-		silent! execute printf('buffer %d', bnr)
+		execute printf('buffer %d', bnr)
 	endif
 endfunction
 

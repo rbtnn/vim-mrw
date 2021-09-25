@@ -4,11 +4,9 @@ let s:SORTBY = '-sortby='
 let s:SORTBY_TIME = s:SORTBY .. 'time'
 let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
 let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
+let s:DELIMITER = ' | '
 
-let s:mrw_limit = 300
-let s:mrw_delimiter = ' | '
-let s:mrw_bufnrs = get(s:, 'mrw_bufnrs', [])
-
+let g:mrw_limit = get(g:, 'mrw_limit', 300)
 let g:mrw_cache_path = expand(get(g:, 'mrw_cache_path', '~/.mrw'))
 
 function! mrw#exec(q_args) abort
@@ -19,7 +17,20 @@ function! mrw#exec(q_args) abort
 		echohl None
 	else
 		try
-			enew
+			" use the old mrw buffer if exists
+			let exists = v:false
+			for x in getbufinfo()
+				if 'mrw' == getbufvar(x['bufnr'], '&filetype', '')
+					let exists = v:true
+					execute printf('%dbuffer', x['bufnr'])
+					break
+				endif
+			endfor
+			if !exists
+				silent! edit [mrw]
+				setfiletype mrw
+				setlocal buftype=nofile bufhidden=hide cursorline
+			endif
 
 			" calculate the width of first and second column
 			let first_max = 0
@@ -57,31 +68,19 @@ function! mrw#exec(q_args) abort
 					\ s:padding_right_space(strftime('%c', getftime(x)), first_max),
 					\ s:padding_right_space(fname, second_max),
 					\ dir,
-					\ ], s:mrw_delimiter)]
+					\ ], s:DELIMITER)]
 			endfor
 
 			setlocal modifiable noreadonly
 			silent! call deletebufline(bufnr(), 1, '$')
-			call setbufline(bufnr(), 1, lines)
-			setlocal nobuflisted buftype=nofile nomodifiable readonly
-			setlocal cursorline
-
-			setfiletype mrw
-			let s:mrw_bufnrs += [bufnr()]
+			silent! call setbufline(bufnr(), 1, lines)
+			setlocal nomodifiable readonly
 		catch
 			echohl Error
-			echo v:exception
+			echo '[mrw]' v:exception
 			echohl None
 		endtry
 	endif
-endfunction
-
-function! mrw#cleanup() abort
-	for bnr in deepcopy(s:mrw_bufnrs)
-		if empty(get(get(getbufinfo(bnr), 0, {}), 'windows', []))
-			call s:bwipeout(bnr)
-		endif
-	endfor
 endfunction
 
 function! mrw#bufwritepost() abort
@@ -121,12 +120,10 @@ endfunction
 
 function! mrw#select() abort
 	let text = getbufline(bufnr(), line('.'), line('.'))[0]
-	let xs = split(text, s:mrw_delimiter)
+	let xs = split(text, s:DELIMITER)
 	let path = s:fix_path(trim(xs[2]) .. '/' .. trim(xs[1]))
 	if filereadable(path)
-		let bnr = bufnr()
 		call s:open_file(path)
-		call s:bwipeout(bnr)
 	endif
 endfunction
 
@@ -136,17 +133,9 @@ function! s:fix_path(path) abort
 	return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
 endfunction
 
-function! s:bwipeout(bnr) abort
-	execute printf('%dbwipeout', a:bnr)
-	let i = index(s:mrw_bufnrs, a:bnr)
-	if -1 != i
-		call remove(s:mrw_bufnrs, i)
-	endif
-endfunction
-
 function! s:read_cachefile(fullpath) abort
 	if filereadable(g:mrw_cache_path)
-		return filter(readfile(g:mrw_cache_path, '', s:mrw_limit), { i,x ->
+		return filter(readfile(g:mrw_cache_path, '', g:mrw_limit), { i,x ->
 			\ (a:fullpath != x) && filereadable(x)
 			\ })
 	else

@@ -10,91 +10,89 @@ let g:mrw_limit = get(g:, 'mrw_limit', 300)
 let g:mrw_cache_path = expand(get(g:, 'mrw_cache_path', '~/.mrw'))
 
 function! mrw#exec(q_args) abort
-	let xs = s:read_cachefile('')
-	if empty(xs)
+	try
+		let xs = s:read_cachefile('')
+		if empty(xs)
+			throw 'no most recently written'
+		endif
+		" use the old mrw buffer if exists
+		let exists = v:false
+		for x in getbufinfo()
+			if 'mrw' == getbufvar(x['bufnr'], '&filetype', '')
+				let exists = v:true
+				execute printf('%dbuffer', x['bufnr'])
+				break
+			endif
+		endfor
+		if !exists
+			silent! edit mrw://output
+			setfiletype mrw
+			setlocal buftype=nofile bufhidden=hide cursorline
+		endif
+
+		" calculate the width of first and second column
+		let first_max = 0
+		let second_max = 0
+		for x in xs
+			let ftime = strftime('%c', getftime(x))
+			if first_max < strdisplaywidth(ftime)
+				let first_max = strdisplaywidth(ftime)
+			endif
+			let fname = fnamemodify(x, ':t')
+			if second_max < strdisplaywidth(fname)
+				let second_max = strdisplaywidth(fname)
+			endif
+		endfor
+
+		" make lines
+		let lines = []
+		let sorted = []
+		if -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
+			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
+		elseif -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
+			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
+		else
+			" It's -sortby=time
+			let sorted = sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
+		endif
+		if -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
+			let sorted = reverse(sorted)
+		endif
+
+		for x in sorted
+			let fname = fnamemodify(x, ':t')
+			let dir = fnamemodify(x, ':h')
+			let lines += [join([
+				\ s:padding_right_space(strftime('%c', getftime(x)), first_max),
+				\ s:padding_right_space(fname, second_max),
+				\ dir,
+				\ ], s:DELIMITER)]
+		endfor
+
+		setlocal modifiable noreadonly
+		silent! call deletebufline(bufnr(), 1, '$')
+		silent! call setbufline(bufnr(), 1, lines)
+		setlocal nomodifiable readonly
+	catch
 		echohl Error
-		echo 'no most recently written'
+		echo '[mrw]' v:exception
 		echohl None
-	else
-		try
-			" use the old mrw buffer if exists
-			let exists = v:false
-			for x in getbufinfo()
-				if 'mrw' == getbufvar(x['bufnr'], '&filetype', '')
-					let exists = v:true
-					execute printf('%dbuffer', x['bufnr'])
-					break
-				endif
-			endfor
-			if !exists
-				silent! edit mrw://output
-				setfiletype mrw
-				setlocal buftype=nofile bufhidden=hide cursorline
-			endif
-
-			" calculate the width of first and second column
-			let first_max = 0
-			let second_max = 0
-			for x in xs
-				let ftime = strftime('%c', getftime(x))
-				if first_max < strdisplaywidth(ftime)
-					let first_max = strdisplaywidth(ftime)
-				endif
-				let fname = fnamemodify(x, ':t')
-				if second_max < strdisplaywidth(fname)
-					let second_max = strdisplaywidth(fname)
-				endif
-			endfor
-
-			" make lines
-			let lines = []
-			let sorted = []
-			if -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
-				let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
-			elseif -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
-				let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
-			else
-				" It's -sortby=time
-				let sorted = sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
-			endif
-			if -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
-				let sorted = reverse(sorted)
-			endif
-
-			for x in sorted
-				let fname = fnamemodify(x, ':t')
-				let dir = fnamemodify(x, ':h')
-				let lines += [join([
-					\ s:padding_right_space(strftime('%c', getftime(x)), first_max),
-					\ s:padding_right_space(fname, second_max),
-					\ dir,
-					\ ], s:DELIMITER)]
-			endfor
-
-			setlocal modifiable noreadonly
-			silent! call deletebufline(bufnr(), 1, '$')
-			silent! call setbufline(bufnr(), 1, lines)
-			setlocal nomodifiable readonly
-		catch
-			echohl Error
-			echo '[mrw]' v:exception
-			echohl None
-		endtry
-	endif
+	endtry
 endfunction
 
 function! mrw#bufwritepost() abort
 	let path = expand('<afile>')
 	if filereadable(path)
 		let fullpath = s:fix_path(path)
-		if fullpath != g:mrw_cache_path
+		let mrw_cache_path = s:fix_path(g:mrw_cache_path)
+		if fullpath != mrw_cache_path
 			let head = []
-			if filereadable(g:mrw_cache_path)
-				let head = readfile(g:mrw_cache_path, '', 1)
+			if filereadable(mrw_cache_path)
+				let head = readfile(mrw_cache_path, '', 1)
 			endif
 			if empty(head) || (fullpath != s:fix_path(get(head, 0, '')))
 				let xs = [fullpath] + s:read_cachefile(fullpath)
-				call writefile(xs, g:mrw_cache_path)
+				call writefile(xs, mrw_cache_path)
 			endif
 		endif
 	endif

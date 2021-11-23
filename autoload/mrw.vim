@@ -150,7 +150,7 @@ function! s:read_cachefile(fullpath) abort
 			else
 				let x = { 'path': lines[i], 'lnum': 1, 'col': 1, }
 			endif
-			if a:fullpath != x['path']
+			if (a:fullpath != x['path']) && filereadable(x['path'])
 				let xs += [json_encode(x)]
 			endif
 		endfor

@@ -11,7 +11,7 @@ let g:mrw_cache_path = expand(get(g:, 'mrw_cache_path', '~/.mrw'))
 
 function! mrw#exec(q_args) abort
 	try
-		let xs = s:read_cachefile('')
+		let xs = map(s:read_cachefile(''), { i,x -> json_decode(x) })
 		if empty(xs)
 			throw 'no most recently written'
 		endif
@@ -34,11 +34,11 @@ function! mrw#exec(q_args) abort
 		let first_max = 0
 		let second_max = 0
 		for x in xs
-			let ftime = strftime('%c', getftime(x))
+			let ftime = strftime('%c', getftime(x['path']))
 			if first_max < strdisplaywidth(ftime)
 				let first_max = strdisplaywidth(ftime)
 			endif
-			let fname = fnamemodify(x, ':t')
+			let fname = printf('%s(%d,%d)', fnamemodify(x['path'], ':t'), x['lnum'], x['col'])
 			if second_max < strdisplaywidth(fname)
 				let second_max = strdisplaywidth(fname)
 			endif
@@ -48,22 +48,22 @@ function! mrw#exec(q_args) abort
 		let lines = []
 		let sorted = []
 		if -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
-			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':t'), fnamemodify(i2, ':t')) })
+			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1['path'], ':t'), fnamemodify(i2['path'], ':t')) })
 		elseif -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
-			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1, ':h'), fnamemodify(i2, ':h')) })
+			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1['path'], ':h'), fnamemodify(i2['path'], ':h')) })
 		else
 			" It's -sortby=time
-			let sorted = sort(xs, { i1,i2 -> getftime(i2) - getftime(i1) })
+			let sorted = sort(xs, { i1,i2 -> getftime(i2['path']) - getftime(i1['path']) })
 		endif
 		if -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
 			let sorted = reverse(sorted)
 		endif
 
 		for x in sorted
-			let fname = fnamemodify(x, ':t')
-			let dir = fnamemodify(x, ':h')
+			let fname = printf('%s(%d,%d)', fnamemodify(x['path'], ':t'), x['lnum'], x['col'])
+			let dir = fnamemodify(x['path'], ':h')
 			let lines += [join([
-				\ s:padding_right_space(strftime('%c', getftime(x)), first_max),
+				\ s:padding_right_space(strftime('%c', getftime(x['path'])), first_max),
 				\ s:padding_right_space(fname, second_max),
 				\ dir,
 				\ ], s:DELIMITER)]
@@ -82,16 +82,24 @@ endfunction
 
 function! mrw#bufwritepost() abort
 	let path = expand('<afile>')
+	let lnum = line('.')
+	let col = col('.')
 	if filereadable(path)
 		let fullpath = s:fix_path(path)
 		let mrw_cache_path = s:fix_path(g:mrw_cache_path)
 		if fullpath != mrw_cache_path
 			let head = []
+			let head_path = ''
 			if filereadable(mrw_cache_path)
 				let head = readfile(mrw_cache_path, '', 1)
+				if 0 < len(head)
+					let head_path = s:fix_path(json_decode(head[0])['path'])
+				else
+					let head_path = ''
+				endif
 			endif
-			if empty(head) || (fullpath != s:fix_path(get(head, 0, '')))
-				let xs = [fullpath] + s:read_cachefile(fullpath)
+			if empty(head) || (fullpath != head_path)
+				let xs = [json_encode({ 'path': fullpath, 'lnum': lnum, 'col': col, })] + s:read_cachefile(fullpath)
 				call writefile(xs, mrw_cache_path)
 			endif
 		endif
@@ -119,9 +127,9 @@ endfunction
 function! mrw#select() abort
 	let text = getbufline(bufnr(), line('.'), line('.'))[0]
 	let xs = split(text, s:DELIMITER)
-	let path = s:fix_path(trim(xs[2]) .. '/' .. trim(xs[1]))
-	if filereadable(path)
-		call s:open_file(path)
+	let m = matchlist(s:fix_path(trim(xs[2]) .. '/' .. trim(xs[1])), '^\(.\{-\}\)(\(\d\+\),\(\d\+\))$')
+	if !empty(m)
+		call s:open_file(m[1], str2nr(m[2]), str2nr(m[3]))
 	endif
 endfunction
 
@@ -133,9 +141,20 @@ endfunction
 
 function! s:read_cachefile(fullpath) abort
 	if filereadable(g:mrw_cache_path)
-		return filter(readfile(g:mrw_cache_path, '', g:mrw_limit), { i,x ->
-			\ (a:fullpath != x) && filereadable(x)
-			\ })
+		let lines = readfile(g:mrw_cache_path, '', g:mrw_limit)
+		let xs = []
+		for i in range(0, len(lines) - 1)
+			let x = {}
+			if lines[i] =~# '^{'
+				let x = json_decode(lines[i])
+			else
+				let x = { 'path': lines[i], 'lnum': 1, 'col': 1, }
+			endif
+			if a:fullpath != x['path']
+				let xs += [json_encode(x)]
+			endif
+		endfor
+		return xs
 	else
 		return []
 	endif
@@ -152,13 +171,14 @@ function! s:strict_bufnr(path) abort
 	endif
 endfunction
 
-function! s:open_file(path) abort
+function! s:open_file(path, lnum, col) abort
 	let bnr = s:strict_bufnr(a:path)
 	if -1 == bnr
 		execute printf('edit %s', fnameescape(a:path))
 	else
 		execute printf('buffer %d', bnr)
 	endif
+	call cursor(a:lnum, a:col)
 endfunction
 
 function! s:strcmp(x, y) abort

@@ -93,7 +93,7 @@ function! mrw#bufwritepost() abort
 			if filereadable(mrw_cache_path)
 				let head = readfile(mrw_cache_path, '', 1)
 				if 0 < len(head)
-					let head_path = s:fix_path(json_decode(head[0])['path'])
+					let head_path = s:fix_path(s:line2dict(head[0])['path'])
 				else
 					let head_path = ''
 				endif
@@ -144,12 +144,7 @@ function! s:read_cachefile(fullpath) abort
 		let lines = readfile(g:mrw_cache_path, '', g:mrw_limit)
 		let xs = []
 		for i in range(0, len(lines) - 1)
-			let x = {}
-			if lines[i] =~# '^{'
-				let x = json_decode(lines[i])
-			else
-				let x = { 'path': lines[i], 'lnum': 1, 'col': 1, }
-			endif
+			let x = s:line2dict(lines[i])
 			if (a:fullpath != x['path']) && filereadable(x['path'])
 				let xs += [json_encode(x)]
 			endif
@@ -187,5 +182,13 @@ endfunction
 
 function! s:padding_right_space(text, width)
 	return a:text .. repeat(' ', a:width - strdisplaywidth(a:text))
+endfunction
+
+function! s:line2dict(line) abort
+	if a:line =~# '^{'
+		return json_decode(a:line)
+	else
+		return { 'path': a:line, 'lnum': 1, 'col': 1, }
+	endif
 endfunction
 

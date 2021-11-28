@@ -81,27 +81,24 @@ function! mrw#exec(q_args) abort
 endfunction
 
 function! mrw#bufwritepost() abort
-	let path = expand('<afile>')
+	let mrw_cache_path = s:fix_path(g:mrw_cache_path)
+	let fullpath = s:fix_path(expand('<afile>'))
 	let lnum = line('.')
 	let col = col('.')
-	if filereadable(path)
-		let fullpath = s:fix_path(path)
-		let mrw_cache_path = s:fix_path(g:mrw_cache_path)
-		if fullpath != mrw_cache_path
-			let head = []
-			let head_path = ''
-			if filereadable(mrw_cache_path)
-				let head = readfile(mrw_cache_path, '', 1)
-				if 0 < len(head)
-					let head_path = s:fix_path(s:line2dict(head[0])['path'])
-				else
-					let head_path = ''
-				endif
+	if filereadable(fullpath) && filereadable(mrw_cache_path) && (fullpath != mrw_cache_path)
+		let p = v:false
+		let head = readfile(mrw_cache_path, '', 1)
+		if 0 < len(head)
+			let x = s:line2dict(head[0])
+			if ((fullpath != s:fix_path(x['path'])) || (lnum != x['lnum']) || (col != x['col']))
+				let p = v:true
 			endif
-			if empty(head) || (fullpath != head_path)
-				let xs = [json_encode({ 'path': fullpath, 'lnum': lnum, 'col': col, })] + s:read_cachefile(fullpath)
-				call writefile(xs, mrw_cache_path)
-			endif
+		else
+			let p = v:true
+		endif
+		if p
+			let xs = [json_encode({ 'path': fullpath, 'lnum': lnum, 'col': col, })] + s:read_cachefile(fullpath)
+			call writefile(xs, mrw_cache_path)
 		endif
 	endif
 endfunction

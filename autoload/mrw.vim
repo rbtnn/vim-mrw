@@ -83,15 +83,21 @@ endfunction
 function! mrw#bufwritepost() abort
 	let mrw_cache_path = s:fix_path(g:mrw_cache_path)
 	let fullpath = s:fix_path(expand('<afile>'))
-	let lnum = line('.')
-	let col = col('.')
-	if filereadable(fullpath) && filereadable(mrw_cache_path) && (fullpath != mrw_cache_path)
+	if fullpath != mrw_cache_path
 		let p = v:false
-		let head = readfile(mrw_cache_path, '', 1)
-		if 0 < len(head)
-			let x = s:line2dict(head[0])
-			if ((fullpath != s:fix_path(x['path'])) || (lnum != x['lnum']) || (col != x['col']))
-				let p = v:true
+		let lnum = line('.')
+		let col = col('.')
+		if filereadable(mrw_cache_path)
+			if filereadable(fullpath)
+				let head = readfile(mrw_cache_path, '', 1)
+				if 0 < len(head)
+					let x = s:line2dict(head[0])
+					if ((fullpath != s:fix_path(x['path'])) || (lnum != x['lnum']) || (col != x['col']))
+						let p = v:true
+					endif
+				else
+					let p = v:true
+				endif
 			endif
 		else
 			let p = v:true

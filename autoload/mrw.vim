@@ -28,7 +28,7 @@ function! mrw#exec(q_args) abort
 		if !exists
 			silent! edit mrw://output
 			setfiletype mrw
-			setlocal buftype=nofile bufhidden=hide cursorline
+			setlocal buftype=nofile bufhidden=hide
 		endif
 
 		let is_fname_only = -1 != index(split(a:q_args, '\s\+'), s:FILENAME_ONLY)
@@ -149,7 +149,6 @@ function! mrw#select() abort
 	else
 		let m = matchlist(s:fix_path(trim(xs[2]) .. '/' .. trim(xs[1])), '^\(.\{-\}\)(\(\d\+\),\(\d\+\))$')
 	endif
-	echo m
 	if !empty(m)
 		call s:open_file(m[1], str2nr(m[2]), str2nr(m[3]))
 	endif

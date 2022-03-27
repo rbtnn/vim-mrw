@@ -1,5 +1,6 @@
 
 let s:REVERSE = '-reverse'
+let s:FILENAME_ONLY = '-filename-only'
 let s:SORTBY = '-sortby='
 let s:SORTBY_TIME = s:SORTBY .. 'time'
 let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
@@ -30,43 +31,54 @@ function! mrw#exec(q_args) abort
 			setlocal buftype=nofile bufhidden=hide cursorline
 		endif
 
-		" calculate the width of first and second column
-		let first_max = 0
-		let second_max = 0
-		for x in xs
-			let ftime = strftime('%c', getftime(x['path']))
-			if first_max < strdisplaywidth(ftime)
-				let first_max = strdisplaywidth(ftime)
-			endif
-			let fname = printf('%s(%d,%d)', fnamemodify(x['path'], ':t'), x['lnum'], x['col'])
-			if second_max < strdisplaywidth(fname)
-				let second_max = strdisplaywidth(fname)
-			endif
-		endfor
+		let is_fname_only = -1 != index(split(a:q_args, '\s\+'), s:FILENAME_ONLY)
+		let sortby_filename = -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
+		let sortby_directory = -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
+		let is_reverse = -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
 
 		" make lines
 		let lines = []
 		let sorted = []
-		if -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
+		if sortby_filename
 			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1['path'], ':t'), fnamemodify(i2['path'], ':t')) })
-		elseif -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
+		elseif sortby_directory
 			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1['path'], ':h'), fnamemodify(i2['path'], ':h')) })
 		else
 			" It's -sortby=time
 			let sorted = sort(xs, { i1,i2 -> getftime(i2['path']) - getftime(i1['path']) })
 		endif
-		if -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
+		if is_reverse
 			let sorted = reverse(sorted)
 		endif
 
 		for x in sorted
-			let fname = printf('%s(%d,%d)', fnamemodify(x['path'], ':t'), x['lnum'], x['col'])
-			let dir = fnamemodify(x['path'], ':h')
-			let lines += [join([
-				\ s:padding_right_space(strftime('%c', getftime(x['path'])), first_max),
-				\ s:padding_right_space(fname, second_max),
-				\ dir,
-				\ ], s:DELIMITER)]
+			let curr_path = x['path']
+			let curr_lnum = x['lnum']
+			let curr_col = x['col']
+			if is_fname_only
+				let lines += [printf('%s(%d,%d)', fnamemodify(curr_path, ':p'), curr_lnum, curr_col)]
+			else
+				" calculate the width of first and second column
+				let first_max = 0
+				let second_max = 0
+				for x in xs
+					let ftime = strftime('%c', getftime(x['path']))
+					if first_max < strdisplaywidth(ftime)
+						let first_max = strdisplaywidth(ftime)
+					endif
+					let fname = printf('%s(%d,%d)', fnamemodify(x['path'], ':t'), x['lnum'], x['col'])
+					if second_max < strdisplaywidth(fname)
+						let second_max = strdisplaywidth(fname)
+					endif
+				endfor
+
+				let dir = fnamemodify(curr_path, ':h')
+				let lines += [join([
+					\ s:padding_right_space(strftime('%c', getftime(curr_path)), first_max),
+					\ s:padding_right_space(printf('%s(%d,%d)', fnamemodify(curr_path, ':t'), curr_lnum, curr_col), second_max),
+					\ dir,
+					\ ], s:DELIMITER)]
+			endif
 		endfor
 
 		setlocal modifiable noreadonly
@@ -112,6 +124,7 @@ endfunction
 function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
 	let xs = []
 	let rev = (-1 != stridx(a:CmdLine, s:REVERSE))
+	let fnameonly = (-1 != stridx(a:CmdLine, s:FILENAME_ONLY))
 	let sortby = v:false
 	for x in [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)]
 		if -1 != stridx(a:CmdLine, x)
@@ -119,7 +132,9 @@ function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
 			break
 		endif
 	endfor
-	for x in (sortby ? [] : [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)]) + (rev ? [] : [(s:REVERSE)])
+	for x in (sortby ? [] : [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)])
+		\ + (rev ? [] : [(s:REVERSE)])
+		\ + (fnameonly ? [] : [(s:FILENAME_ONLY)])
 		if -1 == match(a:CmdLine, x)
 			let xs += [x]
 		endif
@@ -128,9 +143,13 @@ function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
 endfunction
 
 function! mrw#select() abort
-	let text = getbufline(bufnr(), line('.'), line('.'))[0]
-	let xs = split(text, s:DELIMITER)
-	let m = matchlist(s:fix_path(trim(xs[2]) .. '/' .. trim(xs[1])), '^\(.\{-\}\)(\(\d\+\),\(\d\+\))$')
+	let xs = split(getbufline(bufnr(), line('.'), line('.'))[0], s:DELIMITER)
+	if 1 == len(xs)
+		let m = matchlist(s:fix_path(trim(xs[0])), '^\(.\{-\}\)(\(\d\+\),\(\d\+\))$')
+	else
+		let m = matchlist(s:fix_path(trim(xs[2]) .. '/' .. trim(xs[1])), '^\(.\{-\}\)(\(\d\+\),\(\d\+\))$')
+	endif
+	echo m
 	if !empty(m)
 		call s:open_file(m[1], str2nr(m[2]), str2nr(m[3]))
 	endif

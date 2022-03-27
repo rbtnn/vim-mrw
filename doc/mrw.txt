@@ -13,7 +13,6 @@ Commands                |mrw-commands|
 ==============================================================================
 Concepts                                                          *mrw-concepts*
 
-* This plugin does not provide to customize user-settings.
 * This plugin provides only one command.
 
 
@@ -22,7 +21,7 @@ Concepts                                                          *mrw-concepts*
 Commands                                                          *mrw-commands*
 
                                                          *:MRW*
-:MRW [-sortby={sortby-value}] [-reverse]
+:MRW [-sortby={sortby-value}] [-reverse] [-filename-only]
 		Show most recently written files. Then you can edit a selected
 		file.  {sortby-value} is a value of following:
 
@@ -32,6 +31,8 @@ Commands                                                          *mrw-commands*
 		'directory'	Sort by directory of the path.
 
 		Also if `-reverse` is specified, the items are reversed.
+		Also if `-filename-only` is specified, the filename column is
+		only displayed.
 
 
 

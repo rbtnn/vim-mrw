@@ -4,6 +4,7 @@ let s:FILENAME_ONLY = '-filename-only'
 let s:DIRECTORY_ONLY = '-directory-only'
 let s:SORTBY = '-sortby='
 let s:NUM = '-N='
+let s:FILTER = '-filter='
 let s:SORTBY_TIME = s:SORTBY .. 'time'
 let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
 let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
@@ -35,6 +36,7 @@ function! mrw#exec(q_args) abort
 
 		" make lines
 		let args = s:parse_arguments(a:q_args)
+		call filter(xs, { i,x -> x['path'] =~# args['filter_text'] })
 		let sorted = []
 		if args['sortby_filename']
 			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1['path'], ':t'), fnamemodify(i2['path'], ':t')) })
@@ -50,10 +52,11 @@ function! mrw#exec(q_args) abort
 		endif
 
 		try
+			let &l:statusline = '[MRW] When you want to stop the process, press Ctrl-C!'
 			setlocal modifiable noreadonly
 			silent! call deletebufline(bufnr(), 1, '$')
 			let lnum = 1
-			for x in sorted[:(args['num'] - 1)]
+			for x in sorted[:((args['num'] ? args['num'] : g:mrw_limit) - 1)]
 				let curr_path = x['path']
 				let curr_lnum = x['lnum']
 				let curr_col = x['col']
@@ -63,7 +66,7 @@ function! mrw#exec(q_args) abort
 					" calculate the width of first and second column
 					let first_max = 0
 					let second_max = 0
-					for x in xs
+					for x in sorted[:((args['num'] ? args['num'] : g:mrw_limit) - 1)]
 						let ftime = strftime('%c', getftime(x['path']))
 						if first_max < strdisplaywidth(ftime)
 							let first_max = strdisplaywidth(ftime)
@@ -84,6 +87,7 @@ function! mrw#exec(q_args) abort
 				let lnum += 1
 			endfor
 		finally
+			let &l:statusline = '[MRW] ' .. a:q_args
 			setlocal nomodifiable readonly
 		endtry
 	catch
@@ -136,6 +140,7 @@ function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
 		\ + (args['is_reverse'] ? [] : [(s:REVERSE)])
 		\ + (args['is_fname_only'] ? [] : [(s:FILENAME_ONLY)])
 		\ + (args['num'] ? [] : [(s:NUM)])
+		\ + (args['filter_text'] ? [] : [(s:FILTER)])
 		if -1 == match(a:CmdLine, x)
 			let xs += [x]
 		endif
@@ -162,13 +167,15 @@ function! s:parse_arguments(cmdline) abort
 	let sortby_filename = -1 != index(split(a:cmdline, '\s\+'), s:SORTBY_FILENAME)
 	let sortby_directory = -1 != index(split(a:cmdline, '\s\+'), s:SORTBY_DIRECTORY)
 	let is_reverse = -1 != index(split(a:cmdline, '\s\+'), s:REVERSE)
-	let num = get(map(split(a:cmdline, '\s\+'), { i,x -> str2nr(matchstr(x, '^' .. s:NUM .. '\zs\d\+$')) }), 0, g:mrw_limit)
+	let num = get(filter(map(split(a:cmdline, '\s\+'), { i,x -> str2nr(matchstr(x, '^' .. s:NUM .. '\zs\d\+$')) }), { i,x -> 0 < x }), 0, 0)
+	let filter_text = get(filter(map(split(a:cmdline, '\s\+'), { i,x -> matchstr(x, '^' .. s:FILTER .. '\zs[^ ]\+$') }), { i,x -> !empty(x) }), 0, '')
 	return {
 		\ 'is_fname_only': is_fname_only,
 		\ 'sortby_filename': sortby_filename,
 		\ 'sortby_directory': sortby_directory,
 		\ 'is_reverse': is_reverse,
 		\ 'num': num,
+		\ 'filter_text': filter_text,
 		\ }
 endfunction
 

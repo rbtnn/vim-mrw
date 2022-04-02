@@ -24,6 +24,7 @@ Commands                                                          *mrw-commands*
 
                                                          *:MRW*
 :MRW [-sortby={sortby-value}] [-reverse] [-filename-only] [-N={number}]
+     [-filter={text}]
 		Show most recently written files. Then you can edit a selected
 		file.
 
@@ -44,6 +45,10 @@ Commands                                                          *mrw-commands*
 
 		-N={number}                              *:MRW-N*
 		    If `-N` is specified, the {number} items are only displayed.
+
+		-filter={text}                           *:MRW-filter*
+		    If `-filter` is specified, the items filtered by {text} are
+		    only displayed. {text} must not be contained Space(0x20).
 
 
 

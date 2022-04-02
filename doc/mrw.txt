@@ -7,12 +7,14 @@ CONTENTS                                                          *mrw-contents*
 
 Concepts                |mrw-concepts|
 Commands                |mrw-commands|
+Variables               |mrw-variables|
 
 
 
 ==============================================================================
 Concepts                                                          *mrw-concepts*
 
+* This plugin supports Vim and Neovim.
 * This plugin provides only one command.
 
 
@@ -21,18 +23,41 @@ Concepts                                                          *mrw-concepts*
 Commands                                                          *mrw-commands*
 
                                                          *:MRW*
-:MRW [-sortby={sortby-value}] [-reverse] [-filename-only]
+:MRW [-sortby={sortby-value}] [-reverse] [-filename-only] [-N={number}]
 		Show most recently written files. Then you can edit a selected
-		file.  {sortby-value} is a value of following:
+		file.
 
-		'time'		(default) Sort by last modification time of
-				the file .
-		'filename'	Sort by file name of the path.
-		'directory'	Sort by directory of the path.
+		-sortby={sortby-value}                   *:MRW-sortby*
+		    {sortby-value} is a value of following:
 
-		Also if `-reverse` is specified, the items are reversed.
-		Also if `-filename-only` is specified, the filename column is
-		only displayed.
+		    'time'	(default) Sort by last modification time of
+				the file.
+		    'filename'	Sort by file name of the path.
+		    'directory'	Sort by directory of the path.
+
+		-reverse                                 *:MRW-reverse*
+		    If `-reverse` is specified, the items are reversed.
+
+		-filename-only                           *:MRW-filename-only*
+		    If `-filename-only` is specified, the filename column is
+		    only displayed.
+
+		-N={number}                              *:MRW-N*
+		    If `-N` is specified, the {number} items are only displayed.
+
+
+
+==============================================================================
+Variables                                                        *mrw-variables*
+
+
+g:mrw_limit                                               *g:mrw_limit*
+		The number of saved items.
+		(default: `300`)
+
+g:mrw_cache_path                                          *g:mrw_cache_path*
+		The cache file for this plugin.
+		(default: `~/.mrw`)
 
 
 

@@ -1,7 +1,9 @@
 
 let s:REVERSE = '-reverse'
 let s:FILENAME_ONLY = '-filename-only'
+let s:DIRECTORY_ONLY = '-directory-only'
 let s:SORTBY = '-sortby='
+let s:NUM = '-N='
 let s:SORTBY_TIME = s:SORTBY .. 'time'
 let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
 let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
@@ -31,60 +33,59 @@ function! mrw#exec(q_args) abort
 			setlocal buftype=nofile bufhidden=hide
 		endif
 
-		let is_fname_only = -1 != index(split(a:q_args, '\s\+'), s:FILENAME_ONLY)
-		let sortby_filename = -1 != index(split(a:q_args, '\s\+'), s:SORTBY_FILENAME)
-		let sortby_directory = -1 != index(split(a:q_args, '\s\+'), s:SORTBY_DIRECTORY)
-		let is_reverse = -1 != index(split(a:q_args, '\s\+'), s:REVERSE)
-
 		" make lines
-		let lines = []
+		let args = s:parse_arguments(a:q_args)
 		let sorted = []
-		if sortby_filename
+		if args['sortby_filename']
 			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1['path'], ':t'), fnamemodify(i2['path'], ':t')) })
-		elseif sortby_directory
+		elseif args['sortby_directory']
 			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1['path'], ':h'), fnamemodify(i2['path'], ':h')) })
 		else
 			" It's -sortby=time
 			let sorted = sort(xs, { i1,i2 -> getftime(i2['path']) - getftime(i1['path']) })
 		endif
-		if is_reverse
+
+		if args['is_reverse']
 			let sorted = reverse(sorted)
 		endif
 
-		for x in sorted
-			let curr_path = x['path']
-			let curr_lnum = x['lnum']
-			let curr_col = x['col']
-			if is_fname_only
-				let lines += [printf('%s(%d,%d)', fnamemodify(curr_path, ':p'), curr_lnum, curr_col)]
-			else
-				" calculate the width of first and second column
-				let first_max = 0
-				let second_max = 0
-				for x in xs
-					let ftime = strftime('%c', getftime(x['path']))
-					if first_max < strdisplaywidth(ftime)
-						let first_max = strdisplaywidth(ftime)
-					endif
-					let fname = printf('%s(%d,%d)', fnamemodify(x['path'], ':t'), x['lnum'], x['col'])
-					if second_max < strdisplaywidth(fname)
-						let second_max = strdisplaywidth(fname)
-					endif
-				endfor
-
-				let dir = fnamemodify(curr_path, ':h')
-				let lines += [join([
-					\ s:padding_right_space(strftime('%c', getftime(curr_path)), first_max),
-					\ s:padding_right_space(printf('%s(%d,%d)', fnamemodify(curr_path, ':t'), curr_lnum, curr_col), second_max),
-					\ dir,
-					\ ], s:DELIMITER)]
-			endif
-		endfor
-
-		setlocal modifiable noreadonly
-		silent! call deletebufline(bufnr(), 1, '$')
-		silent! call setbufline(bufnr(), 1, lines)
-		setlocal nomodifiable readonly
+		try
+			setlocal modifiable noreadonly
+			silent! call deletebufline(bufnr(), 1, '$')
+			let lnum = 1
+			for x in sorted[:(args['num'] - 1)]
+				let curr_path = x['path']
+				let curr_lnum = x['lnum']
+				let curr_col = x['col']
+				if args['is_fname_only']
+					let line = printf('%s(%d,%d)', fnamemodify(curr_path, ':p'), curr_lnum, curr_col)
+				else
+					" calculate the width of first and second column
+					let first_max = 0
+					let second_max = 0
+					for x in xs
+						let ftime = strftime('%c', getftime(x['path']))
+						if first_max < strdisplaywidth(ftime)
+							let first_max = strdisplaywidth(ftime)
+						endif
+						let fname = printf('%s(%d,%d)', fnamemodify(x['path'], ':t'), x['lnum'], x['col'])
+						if second_max < strdisplaywidth(fname)
+							let second_max = strdisplaywidth(fname)
+						endif
+					endfor
+					let line = join([
+						\ s:padding_right_space(strftime('%c', getftime(curr_path)), first_max),
+						\ s:padding_right_space(printf('%s(%d,%d)', fnamemodify(curr_path, ':t'), curr_lnum, curr_col), second_max),
+						\ fnamemodify(curr_path, ':h'),
+						\ ], s:DELIMITER)
+				endif
+				call setbufline(bufnr(), lnum, line)
+				redraw
+				let lnum += 1
+			endfor
+		finally
+			setlocal nomodifiable readonly
+		endtry
 	catch
 		echohl Error
 		echo '[mrw]' v:exception
@@ -123,8 +124,7 @@ endfunction
 
 function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
 	let xs = []
-	let rev = (-1 != stridx(a:CmdLine, s:REVERSE))
-	let fnameonly = (-1 != stridx(a:CmdLine, s:FILENAME_ONLY))
+	let args = s:parse_arguments(a:CmdLine)
 	let sortby = v:false
 	for x in [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)]
 		if -1 != stridx(a:CmdLine, x)
@@ -133,8 +133,9 @@ function! mrw#comp(ArgLead, CmdLine, CursorPos) abort
 		endif
 	endfor
 	for x in (sortby ? [] : [(s:SORTBY_TIME), (s:SORTBY_FILENAME), (s:SORTBY_DIRECTORY)])
-		\ + (rev ? [] : [(s:REVERSE)])
-		\ + (fnameonly ? [] : [(s:FILENAME_ONLY)])
+		\ + (args['is_reverse'] ? [] : [(s:REVERSE)])
+		\ + (args['is_fname_only'] ? [] : [(s:FILENAME_ONLY)])
+		\ + (args['num'] ? [] : [(s:NUM)])
 		if -1 == match(a:CmdLine, x)
 			let xs += [x]
 		endif
@@ -155,6 +156,21 @@ function! mrw#select() abort
 endfunction
 
 
+
+function! s:parse_arguments(cmdline) abort
+	let is_fname_only = -1 != index(split(a:cmdline, '\s\+'), s:FILENAME_ONLY)
+	let sortby_filename = -1 != index(split(a:cmdline, '\s\+'), s:SORTBY_FILENAME)
+	let sortby_directory = -1 != index(split(a:cmdline, '\s\+'), s:SORTBY_DIRECTORY)
+	let is_reverse = -1 != index(split(a:cmdline, '\s\+'), s:REVERSE)
+	let num = get(map(split(a:cmdline, '\s\+'), { i,x -> str2nr(matchstr(x, '^' .. s:NUM .. '\zs\d\+$')) }), 0, g:mrw_limit)
+	return {
+		\ 'is_fname_only': is_fname_only,
+		\ 'sortby_filename': sortby_filename,
+		\ 'sortby_directory': sortby_directory,
+		\ 'is_reverse': is_reverse,
+		\ 'num': num,
+		\ }
+endfunction
 
 function! s:fix_path(path) abort
 	return fnamemodify(resolve(a:path), ':p:gs?\\?/?')

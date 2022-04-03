@@ -15,10 +15,14 @@ let g:mrw_cache_path = expand(get(g:, 'mrw_cache_path', '~/.mrw'))
 
 function! mrw#exec(q_args) abort
 	try
-		let xs = map(s:read_cachefile(''), { i,x -> json_decode(x) })
+		let xs = s:read_cachefile('')
+		let args = s:parse_arguments(a:q_args)
+		call filter(xs, { i,x -> x['path'] =~ args['filter_text'] })
+
 		if empty(xs)
-			throw 'no most recently written'
+			throw 'No most recently written'
 		endif
+
 		" use the old mrw buffer if exists
 		let exists = v:false
 		for x in getbufinfo()
@@ -35,8 +39,6 @@ function! mrw#exec(q_args) abort
 		endif
 
 		" make lines
-		let args = s:parse_arguments(a:q_args)
-		call filter(xs, { i,x -> x['path'] =~# args['filter_text'] })
 		let sorted = []
 		if args['sortby_filename']
 			let sorted = sort(xs, { i1,i2 -> s:strcmp(fnamemodify(i1['path'], ':t'), fnamemodify(i2['path'], ':t')) })
@@ -120,7 +122,7 @@ function! mrw#bufwritepost() abort
 			let p = v:true
 		endif
 		if p
-			let xs = [json_encode({ 'path': fullpath, 'lnum': lnum, 'col': col, })] + s:read_cachefile(fullpath)
+			let xs = [json_encode({ 'path': fullpath, 'lnum': lnum, 'col': col, })] + map(s:read_cachefile(fullpath), { i,x -> json_encode(x) })
 			call writefile(xs, mrw_cache_path)
 		endif
 	endif
@@ -190,7 +192,7 @@ function! s:read_cachefile(fullpath) abort
 		for i in range(0, len(lines) - 1)
 			let x = s:line2dict(lines[i])
 			if (a:fullpath != x['path']) && filereadable(x['path'])
-				let xs += [json_encode(x)]
+				let xs += [x]
 			endif
 		endfor
 		return xs

@@ -238,3 +238,101 @@ function! s:line2dict(line) abort
 	endif
 endfunction
 
+if !has('nvim')
+	let s:MIN_LNUM = 2
+	let s:MAX_LNUM = 10
+
+	function! s:filter(data, winid, key) abort
+		let xs = split(get(getbufline(winbufnr(a:winid), 1), 0, ''), '\zs')
+		let lnum = line('.', a:winid)
+		if 21 == char2nr(a:key)
+			" Ctrl-u
+			if 1 < len(xs)
+				call remove(xs, 1, -1)
+				call s:update_window(a:data, a:winid, xs)
+			endif
+			return 1
+		elseif 14 == char2nr(a:key)
+			" Ctrl-n
+			if lnum == s:MAX_LNUM
+				call s:set_cursorline(a:winid, s:MIN_LNUM)
+			else
+				call s:set_cursorline(a:winid, lnum + 1)
+			endif
+			return 1
+		elseif 16 == char2nr(a:key)
+			" Ctrl-p
+			if lnum == s:MIN_LNUM
+				call s:set_cursorline(a:winid, line('$', a:winid))
+			else
+				call s:set_cursorline(a:winid, lnum - 1)
+			endif
+			return 1
+		elseif (128 == char2nr(a:key)) || (8 == char2nr(a:key))
+			" Ctrl-h or bs
+			if 1 < len(xs)
+				call remove(xs, -1)
+				call s:update_window(a:data, a:winid, xs)
+			endif
+			return 1
+		elseif (0x20 <= char2nr(a:key)) && (char2nr(a:key) <= 0x7f)
+			let xs += [a:key]
+			call s:update_window(a:data, a:winid, xs)
+			return 1
+		else
+			return popup_filter_menu(a:winid, a:key)
+		endif
+	endfunction
+
+	function! s:update_window(data, winid, xs) abort
+		call setbufline(winbufnr(a:winid), 1, join(a:xs, ''))
+		call setbufline(winbufnr(a:winid), s:MIN_LNUM, '')
+		call deletebufline(winbufnr(a:winid), s:MIN_LNUM + 1, s:MAX_LNUM)
+		let n = s:MIN_LNUM
+		let pattern = join(a:xs[1:], '')
+		for x in a:data
+			if empty(pattern) || (x['path'] =~ pattern)
+				call setbufline(winbufnr(a:winid), n, printf('%s(%d,%d)', x['path'], x['lnum'], x['col']))
+				let n += 1
+				if s:MAX_LNUM < n
+					break
+				endif
+			endif
+		endfor
+	endfunction
+
+	function! s:set_cursorline(winid, lnum) abort
+		call win_execute(a:winid, printf('call setpos(".", [0, %d, 0, 0])', a:lnum))
+	endfunction
+
+	function! s:callback(winid, result) abort
+		let line = get(getbufline(winbufnr(a:winid), a:result), 0, '')
+		if !empty(line)
+			let m = matchlist(s:fix_path(trim(line)), '^\(.\{-\}\)(\(\d\+\),\(\d\+\))$')
+			if !empty(m)
+				call s:open_file(m[1], str2nr(m[2]), str2nr(m[3]))
+			endif
+		endif
+	endfunction
+
+	function! mrw#open_popupwin() abort
+		let data = s:read_cachefile('')
+		let winid = popup_menu([], {
+			\ 'filter': function('s:filter', [data]),
+			\ 'callback': function('s:callback'),
+			\ 'pos': 'topleft',
+			\ 'line': &lines / 2,
+			\ 'col': &columns / 4,
+			\ 'cursorline': v:true,
+			\ 'minheight': s:MIN_LNUM,
+			\ 'maxheight': s:MAX_LNUM,
+			\ 'minwidth': &columns / 2,
+			\ 'highlight': 'Normal',
+			\ 'border': [1, 1, 1, 1],
+			\ })
+		call s:update_window(data, winid, ['>'])
+		call s:set_cursorline(winid, s:MIN_LNUM)
+		call win_execute(winid, 'setfiletype mrw')
+	endfunction
+endif
+

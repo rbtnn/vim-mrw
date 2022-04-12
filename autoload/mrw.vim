@@ -254,7 +254,7 @@ if !has('nvim')
 			return 1
 		elseif 14 == char2nr(a:key)
 			" Ctrl-n
-			if lnum == s:MAX_LNUM
+			if lnum == line('$', a:winid)
 				call s:set_cursorline(a:winid, s:MIN_LNUM)
 			else
 				call s:set_cursorline(a:winid, lnum + 1)
@@ -285,20 +285,25 @@ if !has('nvim')
 	endfunction
 
 	function! s:update_window(data, winid, xs) abort
-		call setbufline(winbufnr(a:winid), 1, join(a:xs, ''))
-		call setbufline(winbufnr(a:winid), s:MIN_LNUM, '')
-		call deletebufline(winbufnr(a:winid), s:MIN_LNUM + 1, s:MAX_LNUM)
+		let bnr = winbufnr(a:winid)
+		call setbufline(bnr, 1, join(a:xs, ''))
+		call setbufline(bnr, s:MIN_LNUM, '')
+		call deletebufline(bnr, s:MIN_LNUM + 1, s:MAX_LNUM)
 		let n = s:MIN_LNUM
 		let pattern = join(a:xs[1:], '')
-		for x in a:data
-			if empty(pattern) || (x['path'] =~ pattern)
-				call setbufline(winbufnr(a:winid), n, printf('%s(%d,%d)', x['path'], x['lnum'], x['col']))
-				let n += 1
-				if s:MAX_LNUM < n
-					break
+		try
+			for x in a:data
+				if empty(pattern) || (x['path'] =~ pattern)
+					call setbufline(bnr, n, printf('%s(%d,%d)', x['path'], x['lnum'], x['col']))
+					let n += 1
+					if s:MAX_LNUM < n
+						break
+					endif
 				endif
-			endif
-		endfor
+			endfor
+		catch
+			call setbufline(bnr, n, v:exception)
+		endtry
 	endfunction
 
 	function! s:set_cursorline(winid, lnum) abort
@@ -316,17 +321,16 @@ if !has('nvim')
 	endfunction
 
 	function! mrw#open_popupwin() abort
-		let data = s:read_cachefile('')
+		let data = s:read_cachefile(s:fix_path(expand('%:p')))
 		let winid = popup_menu([], {
 			\ 'filter': function('s:filter', [data]),
 			\ 'callback': function('s:callback'),
 			\ 'pos': 'topleft',
-			\ 'line': &lines / 2,
-			\ 'col': &columns / 4,
+			\ 'line': 1,
+			\ 'col': 1,
 			\ 'cursorline': v:true,
 			\ 'minheight': s:MIN_LNUM,
 			\ 'maxheight': s:MAX_LNUM,
-			\ 'minwidth': &columns / 2,
 			\ 'highlight': 'Normal',
 			\ 'border': [1, 1, 1, 1],
 			\ })

@@ -322,6 +322,12 @@ if !has('nvim')
 
 	function! mrw#open_popupwin() abort
 		let data = s:read_cachefile(s:fix_path(expand('%:p')))
+		let width = &columns - 4
+		if has('tabsidebar')
+			if (2 == &showtabsidebar) || ((1 == &showtabsidebar) && (1 < tabpagenr('$')))
+				let width -= &tabsidebarcolumns
+			endif
+		endif
 		let winid = popup_menu([], {
 			\ 'filter': function('s:filter', [data]),
 			\ 'callback': function('s:callback'),
@@ -331,6 +337,8 @@ if !has('nvim')
 			\ 'cursorline': v:true,
 			\ 'minheight': s:MIN_LNUM,
 			\ 'maxheight': s:MAX_LNUM,
+			\ 'minwidth': width,
+			\ 'maxwidth': width,
 			\ 'highlight': 'Normal',
 			\ 'border': [1, 1, 1, 1],
 			\ })

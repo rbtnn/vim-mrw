@@ -10,12 +10,9 @@ let s:SORTBY_FILENAME = s:SORTBY .. 'filename'
 let s:SORTBY_DIRECTORY = s:SORTBY .. 'directory'
 let s:DELIMITER = ' | '
 
-let g:mrw_limit = get(g:, 'mrw_limit', 300)
-let g:mrw_cache_path = expand(get(g:, 'mrw_cache_path', '~/.mrw'))
-
 function! mrw#exec(q_args) abort
 	try
-		let xs = s:read_cachefile('')
+		let xs = mrw#read_cachefile()
 		let args = s:parse_arguments(a:q_args)
 		call filter(xs, { i,x -> x['path'] =~ args['filter_text'] })
 
@@ -122,7 +119,7 @@ function! mrw#bufwritepost() abort
 			let p = v:true
 		endif
 		if p
-			let xs = [json_encode({ 'path': fullpath, 'lnum': lnum, 'col': col, })] + map(s:read_cachefile(fullpath), { i,x -> json_encode(x) })
+			let xs = [json_encode({ 'path': fullpath, 'lnum': lnum, 'col': col, })] + map(mrw#read_cachefile(fullpath), { i,x -> json_encode(x) })
 			call writefile(xs, mrw_cache_path)
 		endif
 	endif
@@ -162,6 +159,22 @@ function! mrw#select() abort
 	endif
 endfunction
 
+function! mrw#read_cachefile(fullpath = '') abort
+	if filereadable(g:mrw_cache_path)
+		let lines = readfile(g:mrw_cache_path, '', g:mrw_limit)
+		let xs = []
+		for i in range(0, len(lines) - 1)
+			let x = s:line2dict(lines[i])
+			if (a:fullpath != x['path']) && filereadable(x['path'])
+				let xs += [x]
+			endif
+		endfor
+		return xs
+	else
+		return []
+	endif
+endfunction
+
 
 
 function! s:parse_arguments(cmdline) abort
@@ -183,22 +196,6 @@ endfunction
 
 function! s:fix_path(path) abort
 	return fnamemodify(resolve(a:path), ':p:gs?\\?/?')
-endfunction
-
-function! s:read_cachefile(fullpath) abort
-	if filereadable(g:mrw_cache_path)
-		let lines = readfile(g:mrw_cache_path, '', g:mrw_limit)
-		let xs = []
-		for i in range(0, len(lines) - 1)
-			let x = s:line2dict(lines[i])
-			if (a:fullpath != x['path']) && filereadable(x['path'])
-				let xs += [x]
-			endif
-		endfor
-		return xs
-	else
-		return []
-	endif
 endfunction
 
 function! s:strict_bufnr(path) abort
@@ -237,114 +234,4 @@ function! s:line2dict(line) abort
 		return { 'path': a:line, 'lnum': 1, 'col': 1, }
 	endif
 endfunction
-
-if !has('nvim')
-	let s:MIN_LNUM = 2
-	let s:MAX_LNUM = 10
-
-	function! s:filter(data, winid, key) abort
-		let xs = split(get(getbufline(winbufnr(a:winid), 1), 0, ''), '\zs')
-		let lnum = line('.', a:winid)
-		if 21 == char2nr(a:key)
-			" Ctrl-u
-			if 1 < len(xs)
-				call remove(xs, 1, -1)
-				call s:update_window(a:data, a:winid, xs)
-			endif
-			return 1
-		elseif 14 == char2nr(a:key)
-			" Ctrl-n
-			if lnum == line('$', a:winid)
-				call s:set_cursorline(a:winid, s:MIN_LNUM)
-			else
-				call s:set_cursorline(a:winid, lnum + 1)
-			endif
-			return 1
-		elseif 16 == char2nr(a:key)
-			" Ctrl-p
-			if lnum == s:MIN_LNUM
-				call s:set_cursorline(a:winid, line('$', a:winid))
-			else
-				call s:set_cursorline(a:winid, lnum - 1)
-			endif
-			return 1
-		elseif (128 == char2nr(a:key)) || (8 == char2nr(a:key))
-			" Ctrl-h or bs
-			if 1 < len(xs)
-				call remove(xs, -1)
-				call s:update_window(a:data, a:winid, xs)
-			endif
-			return 1
-		elseif (0x20 <= char2nr(a:key)) && (char2nr(a:key) <= 0x7f)
-			let xs += [a:key]
-			call s:update_window(a:data, a:winid, xs)
-			return 1
-		else
-			return popup_filter_menu(a:winid, a:key)
-		endif
-	endfunction
-
-	function! s:update_window(data, winid, xs) abort
-		let bnr = winbufnr(a:winid)
-		call setbufline(bnr, 1, join(a:xs, ''))
-		call setbufline(bnr, s:MIN_LNUM, '')
-		call deletebufline(bnr, s:MIN_LNUM + 1, s:MAX_LNUM)
-		let n = s:MIN_LNUM
-		let pattern = join(a:xs[1:], '')
-		try
-			for x in a:data
-				if empty(pattern) || (x['path'] =~ pattern)
-					call setbufline(bnr, n, printf('%s(%d,%d)', x['path'], x['lnum'], x['col']))
-					let n += 1
-					if s:MAX_LNUM < n
-						break
-					endif
-				endif
-			endfor
-		catch
-			call setbufline(bnr, n, v:exception)
-		endtry
-	endfunction
-
-	function! s:set_cursorline(winid, lnum) abort
-		call win_execute(a:winid, printf('call setpos(".", [0, %d, 0, 0])', a:lnum))
-	endfunction
-
-	function! s:callback(winid, result) abort
-		let line = get(getbufline(winbufnr(a:winid), a:result), 0, '')
-		if !empty(line)
-			let m = matchlist(s:fix_path(trim(line)), '^\(.\{-\}\)(\(\d\+\),\(\d\+\))$')
-			if !empty(m)
-				call s:open_file(m[1], str2nr(m[2]), str2nr(m[3]))
-			endif
-		endif
-	endfunction
-
-	function! mrw#open_popupwin() abort
-		let data = s:read_cachefile(s:fix_path(expand('%:p')))
-		let width = &columns - 4
-		if has('tabsidebar')
-			if (2 == &showtabsidebar) || ((1 == &showtabsidebar) && (1 < tabpagenr('$')))
-				let width -= &tabsidebarcolumns
-			endif
-		endif
-		let winid = popup_menu([], {
-			\ 'filter': function('s:filter', [data]),
-			\ 'callback': function('s:callback'),
-			\ 'pos': 'topleft',
-			\ 'line': 1,
-			\ 'col': 1,
-			\ 'cursorline': v:true,
-			\ 'minheight': s:MIN_LNUM,
-			\ 'maxheight': s:MAX_LNUM,
-			\ 'minwidth': width,
-			\ 'maxwidth': width,
-			\ 'highlight': 'Normal',
-			\ 'border': [1, 1, 1, 1],
-			\ })
-		call s:update_window(data, winid, ['>'])
-		call s:set_cursorline(winid, s:MIN_LNUM)
-		call win_execute(winid, 'setfiletype mrw')
-	endfunction
-endif
 
